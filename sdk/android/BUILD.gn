@@ -361,10 +361,15 @@ if (is_android) {
       "api/org/webrtc/CameraEnumerationAndroid.java",
       "api/org/webrtc/CameraEnumerator.java",
       "api/org/webrtc/CameraVideoCapturer.java",
+      "src/java/org/webrtc/Camera1InfoImpl.java",
+      "src/java/org/webrtc/Camera2InfoImpl.java",
       "src/java/org/webrtc/Camera1Session.java",
       "src/java/org/webrtc/Camera2Session.java",
+      "src/java/org/webrtc/CameraApi.java",
       "src/java/org/webrtc/CameraCapturer.java",
+      "src/java/org/webrtc/CameraCapturerCompat.java",
       "src/java/org/webrtc/CameraSession.java",
+      "src/java/org/webrtc/RtcCameraInfo.java",
     ]
 
     deps = [

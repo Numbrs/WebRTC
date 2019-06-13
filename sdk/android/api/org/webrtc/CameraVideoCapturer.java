@@ -18,7 +18,7 @@ import android.support.annotation.Nullable;
  * switchCamera() function. Also provides subinterfaces for handling camera events, and a helper
  * class for detecting camera freezes.
  */
-public interface CameraVideoCapturer extends VideoCapturer {
+public interface CameraVideoCapturer extends VideoCapturer, CameraApi {
   /**
    * Camera events handler - can be used to be notifed about camera events. The callbacks are
    * executed from an arbitrary thread.

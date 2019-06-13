@@ -11,6 +11,7 @@
 package org.webrtc;
 
 import android.content.Context;
+import android.hardware.camera2.CameraAccessException;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.Nullable;
@@ -18,6 +19,9 @@ import java.util.Arrays;
 
 @SuppressWarnings("deprecation")
 abstract class CameraCapturer implements CameraVideoCapturer {
+
+  @Nullable CameraSession session;
+
   enum SwitchState {
     IDLE, // No switch requested.
     PENDING, // Waiting for previous capture session to open.
@@ -334,6 +338,27 @@ abstract class CameraCapturer implements CameraVideoCapturer {
         switchCameraInternal(switchEventsHandler);
       }
     });
+  }
+
+  @Override
+  public void restartVideoRequest() throws CameraAccessException {
+    if (session != null) {
+      session.restartVideoRequest();
+    }
+  }
+
+  @Override
+  public void setFlashState(boolean isFlashTorchOn) {
+    if (session != null) {
+      session.setFlashState(isFlashTorchOn);
+    }
+  }
+
+  @Override
+  public void triggerAutofocus() throws CameraAccessException {
+    if (session != null) {
+      session.triggerAutofocus();
+    }
   }
 
   @Override

@@ -15,7 +15,7 @@
 #include "modules/desktop_capture/desktop_frame.h"
 #include "modules/desktop_capture/desktop_region.h"
 #include "modules/desktop_capture/mock_desktop_capturer_callback.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "rtc_base/logging.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -35,7 +35,6 @@ class ScreenCapturerTest : public testing::Test {
   void SetUp() override {
     capturer_ = DesktopCapturer::CreateScreenCapturer(
         DesktopCaptureOptions::CreateDefault());
-    RTC_DCHECK(capturer_);
   }
 
  protected:
@@ -51,7 +50,7 @@ class ScreenCapturerTest : public testing::Test {
 
   bool CreateDirectxCapturer() {
     if (!ScreenCapturerWinDirectx::IsSupported()) {
-      RTC_LOG(LS_WARNING) << "Directx capturer is not supported";
+      LOG(LS_WARNING) << "Directx capturer is not supported";
       return false;
     }
 
@@ -73,9 +72,12 @@ class ScreenCapturerTest : public testing::Test {
 class FakeSharedMemory : public SharedMemory {
  public:
   FakeSharedMemory(char* buffer, size_t size)
-      : SharedMemory(buffer, size, 0, kTestSharedMemoryId), buffer_(buffer) {}
-  ~FakeSharedMemory() override { delete[] buffer_; }
-
+    : SharedMemory(buffer, size, 0, kTestSharedMemoryId),
+      buffer_(buffer) {
+  }
+  virtual ~FakeSharedMemory() {
+    delete[] buffer_;
+  }
  private:
   char* buffer_;
   RTC_DISALLOW_COPY_AND_ASSIGN(FakeSharedMemory);
@@ -107,22 +109,11 @@ TEST_F(ScreenCapturerTest, GetScreenListAndSelectScreen) {
   }
 }
 
-// Flaky on Linux. See: crbug.com/webrtc/7830
-#if defined(WEBRTC_LINUX)
-#define MAYBE_StartCapturer DISABLED_StartCaptuerer
-#else
-#define MAYBE_StartCapturer StartCapturer
-#endif
-TEST_F(ScreenCapturerTest, MAYBE_StartCapturer) {
+TEST_F(ScreenCapturerTest, StartCapturer) {
   capturer_->Start(&callback_);
 }
 
-#if defined(WEBRTC_LINUX)
-#define MAYBE_Capture DISABLED_Capture
-#else
-#define MAYBE_Capture Capture
-#endif
-TEST_F(ScreenCapturerTest, MAYBE_Capture) {
+TEST_F(ScreenCapturerTest, Capture) {
   // Assume that Start() treats the screen as invalid initially.
   std::unique_ptr<DesktopFrame> frame;
   EXPECT_CALL(callback_,

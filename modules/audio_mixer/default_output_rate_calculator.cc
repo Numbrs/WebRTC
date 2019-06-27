@@ -11,10 +11,8 @@
 #include "modules/audio_mixer/default_output_rate_calculator.h"
 
 #include <algorithm>
-#include <iterator>
 
 #include "modules/audio_processing/include/audio_processing.h"
-#include "rtc_base/checks.h"
 
 namespace webrtc {
 

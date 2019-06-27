@@ -3,7 +3,6 @@ package org.webrtc;
 import android.annotation.TargetApi;
 import android.graphics.Rect;
 import android.os.Build;
-import android.support.annotation.Nullable;
 import android.util.Range;
 
 import java.util.List;
@@ -21,9 +20,9 @@ import static org.webrtc.CameraEnumerationAndroid.getClosestSupportedSize;
 @SuppressWarnings("deprecation")
 public class Camera1InfoImpl implements RtcCameraInfo {
 
-    @Nullable private final String cameraId;
+    private final String cameraId;
     private final int cameraIndex;
-    private final boolean fixAutoFocus;
+    private final boolean applyAutofocusFix;
 
     private final int lensFacing;
     private final int orientation;
@@ -40,9 +39,9 @@ public class Camera1InfoImpl implements RtcCameraInfo {
     private int height;
     private int preferredFps;
 
-    @Nullable private Size bestSize;
-    @Nullable private CaptureFormat captureFormat;
-    @Nullable private CaptureFormat.FramerateRange bestFpsRange;
+    private Size bestSize = null;
+    private CaptureFormat captureFormat = null;
+    private CaptureFormat.FramerateRange bestFpsRange = null;
     private boolean applyImageStretchedFix;
 
     Camera1InfoImpl(
@@ -50,14 +49,14 @@ public class Camera1InfoImpl implements RtcCameraInfo {
             int width,
             int height,
             int preferredFps,
-            boolean fixAutoFocus,
+            boolean applyAutofocusFix,
             boolean applyImageStretchedFix) {
         cameraId = Camera1Enumerator.getDeviceName(cameraIndex);
         this.cameraIndex = cameraIndex;
         this.width = width;
         this.height = height;
         this.preferredFps = preferredFps;
-        this.fixAutoFocus = fixAutoFocus;
+        this.applyAutofocusFix = applyAutofocusFix;
         this.applyImageStretchedFix = applyImageStretchedFix;
 
         android.hardware.Camera.CameraInfo info = new android.hardware.Camera.CameraInfo();
@@ -75,7 +74,6 @@ public class Camera1InfoImpl implements RtcCameraInfo {
         supportedFrameRates = Camera1Enumerator.convertFramerates(availableFpsRanges);
     }
 
-    @Nullable
     @Override
     public String getCameraId() {
         return cameraId;
@@ -158,7 +156,7 @@ public class Camera1InfoImpl implements RtcCameraInfo {
 
     @Override
     public boolean applyAutoFocusFix() {
-        return fixAutoFocus;
+        return applyAutofocusFix;
     }
 
     @Override
@@ -176,7 +174,6 @@ public class Camera1InfoImpl implements RtcCameraInfo {
         }
     }
 
-    @Nullable
     @Override
     public CaptureFormat getCaptureFormat() {
         if (captureFormat != null) {
@@ -187,7 +184,6 @@ public class Camera1InfoImpl implements RtcCameraInfo {
         return captureFormat;
     }
 
-    @Nullable
     @Override
     public Size getBestSize() {
         if (bestSize != null) {
@@ -198,7 +194,6 @@ public class Camera1InfoImpl implements RtcCameraInfo {
         return bestSize;
     }
 
-    @Nullable
     @Override
     public Range<Integer> getBestFpsRange() {
         if (bestFpsRange != null) {

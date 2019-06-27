@@ -12,7 +12,7 @@
 #include <utility>
 
 #include "rtc_base/function_view.h"
-#include "test/gtest.h"
+#include "rtc_base/gunit.h"
 
 namespace rtc {
 
@@ -73,7 +73,7 @@ TEST(FunctionViewTest, Null) {
   EXPECT_FALSE(rtc::FunctionView<int()>(nullptr));
 
   // This calls the constructor for function pointers.
-  EXPECT_FALSE(rtc::FunctionView<int()>(reinterpret_cast<int (*)()>(0)));
+  EXPECT_FALSE(rtc::FunctionView<int()>(reinterpret_cast<int(*)()>(0)));
 }
 
 // Ensure that FunctionView handles move-only arguments and return values.
@@ -97,7 +97,6 @@ TEST(FunctionViewTest, CopyConstructor) {
 TEST(FunctionViewTest, MoveConstructorIsCopy) {
   auto f17 = [] { return 17; };
   rtc::FunctionView<int()> fv1(f17);
-  // NOLINTNEXTLINE(performance-move-const-arg)
   rtc::FunctionView<int()> fv2(std::move(fv1));
   EXPECT_EQ(17, fv1());
   EXPECT_EQ(17, fv2());
@@ -122,7 +121,7 @@ TEST(FunctionViewTest, MoveAssignmentIsCopy) {
   rtc::FunctionView<int()> fv2(f23);
   EXPECT_EQ(17, fv1());
   EXPECT_EQ(23, fv2());
-  fv2 = std::move(fv1);  // NOLINT(performance-move-const-arg)
+  fv2 = std::move(fv1);
   EXPECT_EQ(17, fv1());
   EXPECT_EQ(17, fv2());
 }

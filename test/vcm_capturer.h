@@ -11,23 +11,32 @@
 #define TEST_VCM_CAPTURER_H_
 
 #include <memory>
-#include <vector>
 
-#include "api/scoped_refptr.h"
+#include "common_types.h"  // NOLINT(build/include)
+#include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "modules/video_capture/video_capture.h"
-#include "test/test_video_capturer.h"
+#include "rtc_base/criticalsection.h"
+#include "rtc_base/scoped_ref_ptr.h"
+#include "test/video_capturer.h"
 
 namespace webrtc {
 namespace test {
 
-class VcmCapturer : public TestVideoCapturer,
-                    public rtc::VideoSinkInterface<VideoFrame> {
+class VcmCapturer
+    : public VideoCapturer,
+      public rtc::VideoSinkInterface<VideoFrame> {
  public:
   static VcmCapturer* Create(size_t width,
                              size_t height,
                              size_t target_fps,
                              size_t capture_device_index);
   virtual ~VcmCapturer();
+
+  void Start() override;
+  void Stop() override;
+  void AddOrUpdateSink(rtc::VideoSinkInterface<VideoFrame>* sink,
+                       const rtc::VideoSinkWants& wants) override;
+  void RemoveSink(rtc::VideoSinkInterface<VideoFrame>* sink) override;
 
   void OnFrame(const VideoFrame& frame) override;
 
@@ -39,11 +48,14 @@ class VcmCapturer : public TestVideoCapturer,
             size_t capture_device_index);
   void Destroy();
 
+  rtc::CriticalSection crit_;
+  bool started_ RTC_GUARDED_BY(crit_);
+  rtc::VideoSinkInterface<VideoFrame>* sink_ RTC_GUARDED_BY(crit_);
   rtc::scoped_refptr<VideoCaptureModule> vcm_;
   VideoCaptureCapability capability_;
 };
 
-}  // namespace test
-}  // namespace webrtc
+}  // test
+}  // webrtc
 
 #endif  // TEST_VCM_CAPTURER_H_

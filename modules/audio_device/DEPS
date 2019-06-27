@@ -25,9 +25,6 @@ specific_include_rules = {
   "RTCAudioSessionDelegateAdapter\.h": [
     "+sdk/objc",
   ],
-  "RTCAudioSessionDelegateAdapter\.mm": [
-    "+sdk/objc",
-  ],
   "voice_processing_audio_unit\.mm": [
     "+sdk/objc",
   ],

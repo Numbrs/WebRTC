@@ -10,28 +10,18 @@
 
 #include "examples/peerconnection/client/linux/main_wnd.h"
 
-#include <cairo.h>
-#include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
-#include <glib-object.h>
-#include <glib.h>
-#include <gobject/gclosure.h>
 #include <gtk/gtk.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <cstdint>
-#include <map>
-#include <utility>
 
+#include "libyuv/convert_from.h"
 #include "api/video/i420_buffer.h"
-#include "api/video/video_frame_buffer.h"
-#include "api/video/video_rotation.h"
-#include "api/video/video_source_interface.h"
+#include "examples/peerconnection/client/defaults.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "third_party/libyuv/include/libyuv/convert_from.h"
+#include "rtc_base/stringutils.h"
+
+using rtc::sprintfn;
 
 namespace {
 
@@ -40,8 +30,7 @@ namespace {
 // GtkMainWnd instance.
 //
 
-gboolean OnDestroyedCallback(GtkWidget* widget,
-                             GdkEvent* event,
+gboolean OnDestroyedCallback(GtkWidget* widget, GdkEvent* event,
                              gpointer data) {
   reinterpret_cast<GtkMainWnd*>(data)->OnDestroyed(widget, event);
   return FALSE;
@@ -56,17 +45,14 @@ gboolean SimulateButtonClick(gpointer button) {
   return false;
 }
 
-gboolean OnKeyPressCallback(GtkWidget* widget,
-                            GdkEventKey* key,
+gboolean OnKeyPressCallback(GtkWidget* widget, GdkEventKey* key,
                             gpointer data) {
   reinterpret_cast<GtkMainWnd*>(data)->OnKeyPress(widget, key);
   return false;
 }
 
-void OnRowActivatedCallback(GtkTreeView* tree_view,
-                            GtkTreePath* path,
-                            GtkTreeViewColumn* column,
-                            gpointer data) {
+void OnRowActivatedCallback(GtkTreeView* tree_view, GtkTreePath* path,
+                            GtkTreeViewColumn* column, gpointer data) {
   reinterpret_cast<GtkMainWnd*>(data)->OnRowActivated(tree_view, path, column);
 }
 
@@ -104,8 +90,8 @@ void InitializeList(GtkWidget* list) {
 
 // Adds an entry to a tree view.
 void AddToList(GtkWidget* list, const gchar* str, int value) {
-  GtkListStore* store =
-      GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(list)));
+  GtkListStore* store = GTK_LIST_STORE(
+      gtk_tree_view_get_model(GTK_TREE_VIEW(list)));
 
   GtkTreeIter iter;
   gtk_list_store_append(store, &iter);
@@ -145,22 +131,13 @@ gboolean Draw(GtkWidget* widget, cairo_t* cr, gpointer data) {
 // GtkMainWnd implementation.
 //
 
-GtkMainWnd::GtkMainWnd(const char* server,
-                       int port,
-                       bool autoconnect,
+GtkMainWnd::GtkMainWnd(const char* server, int port, bool autoconnect,
                        bool autocall)
-    : window_(NULL),
-      draw_area_(NULL),
-      vbox_(NULL),
-      server_edit_(NULL),
-      port_edit_(NULL),
-      peer_list_(NULL),
-      callback_(NULL),
-      server_(server),
-      autoconnect_(autoconnect),
-      autocall_(autocall) {
+    : window_(NULL), draw_area_(NULL), vbox_(NULL), server_edit_(NULL),
+      port_edit_(NULL), peer_list_(NULL), callback_(NULL),
+      server_(server), autoconnect_(autoconnect), autocall_(autocall) {
   char buffer[10];
-  snprintf(buffer, sizeof(buffer), "%i", port);
+  sprintfn(buffer, sizeof(buffer), "%i", port);
   port_ = buffer;
 }
 
@@ -176,13 +153,12 @@ bool GtkMainWnd::IsWindow() {
   return window_ != NULL && GTK_IS_WINDOW(window_);
 }
 
-void GtkMainWnd::MessageBox(const char* caption,
-                            const char* text,
+void GtkMainWnd::MessageBox(const char* caption, const char* text,
                             bool is_error) {
-  GtkWidget* dialog = gtk_message_dialog_new(
-      GTK_WINDOW(window_), GTK_DIALOG_DESTROY_WITH_PARENT,
-      is_error ? GTK_MESSAGE_ERROR : GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE, "%s",
-      text);
+  GtkWidget* dialog = gtk_message_dialog_new(GTK_WINDOW(window_),
+      GTK_DIALOG_DESTROY_WITH_PARENT,
+      is_error ? GTK_MESSAGE_ERROR : GTK_MESSAGE_INFO,
+      GTK_BUTTONS_CLOSE, "%s", text);
   gtk_window_set_title(GTK_WINDOW(dialog), caption);
   gtk_dialog_run(GTK_DIALOG(dialog));
   gtk_widget_destroy(dialog);
@@ -197,6 +173,7 @@ MainWindow::UI GtkMainWnd::current_ui() {
 
   return STREAMING;
 }
+
 
 void GtkMainWnd::StartLocalRenderer(webrtc::VideoTrackInterface* local_video) {
   local_renderer_.reset(new VideoRenderer(this, local_video));
@@ -250,7 +227,7 @@ bool GtkMainWnd::Destroy() {
 }
 
 void GtkMainWnd::SwitchToConnectUI() {
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
 
   RTC_DCHECK(IsWindow());
   RTC_DCHECK(vbox_ == NULL);
@@ -306,7 +283,7 @@ void GtkMainWnd::SwitchToConnectUI() {
 }
 
 void GtkMainWnd::SwitchToPeerList(const Peers& peers) {
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
 
   if (!peer_list_) {
     gtk_container_set_border_width(GTK_CONTAINER(window_), 0);
@@ -343,7 +320,7 @@ void GtkMainWnd::SwitchToPeerList(const Peers& peers) {
 }
 
 void GtkMainWnd::SwitchToStreamingUI() {
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
 
   RTC_DCHECK(draw_area_ == NULL);
 
@@ -417,8 +394,7 @@ void GtkMainWnd::OnKeyPress(GtkWidget* widget, GdkEventKey* key) {
   }
 }
 
-void GtkMainWnd::OnRowActivated(GtkTreeView* tree_view,
-                                GtkTreePath* path,
+void GtkMainWnd::OnRowActivated(GtkTreeView* tree_view, GtkTreePath* path,
                                 GtkTreeViewColumn* column) {
   RTC_DCHECK(peer_list_ != NULL);
   GtkTreeIter iter;
@@ -426,12 +402,12 @@ void GtkMainWnd::OnRowActivated(GtkTreeView* tree_view,
   GtkTreeSelection* selection =
       gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view));
   if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
-    char* text;
-    int id = -1;
-    gtk_tree_model_get(model, &iter, 0, &text, 1, &id, -1);
-    if (id != -1)
-      callback_->ConnectToPeer(id);
-    g_free(text);
+     char* text;
+     int id = -1;
+     gtk_tree_model_get(model, &iter, 0, &text, 1, &id,  -1);
+     if (id != -1)
+       callback_->ConnectToPeer(id);
+     g_free(text);
   }
 }
 
@@ -543,7 +519,8 @@ void GtkMainWnd::VideoRenderer::SetSize(int width, int height) {
   gdk_threads_leave();
 }
 
-void GtkMainWnd::VideoRenderer::OnFrame(const webrtc::VideoFrame& video_frame) {
+void GtkMainWnd::VideoRenderer::OnFrame(
+    const webrtc::VideoFrame& video_frame) {
   gdk_threads_enter();
 
   rtc::scoped_refptr<webrtc::I420BufferInterface> buffer(
@@ -559,10 +536,11 @@ void GtkMainWnd::VideoRenderer::OnFrame(const webrtc::VideoFrame& video_frame) {
   // This was supposed to be a call to libyuv::I420ToRGBA but it was resulting
   // in a reddish video output (see https://bugs.webrtc.org/6857) because it
   // was producing an unexpected byte order (ABGR, byte swapped).
-  libyuv::I420ToABGR(buffer->DataY(), buffer->StrideY(), buffer->DataU(),
-                     buffer->StrideU(), buffer->DataV(), buffer->StrideV(),
-                     image_.get(), width_ * 4, buffer->width(),
-                     buffer->height());
+  libyuv::I420ToABGR(buffer->DataY(), buffer->StrideY(),
+                     buffer->DataU(), buffer->StrideU(),
+                     buffer->DataV(), buffer->StrideV(),
+                     image_.get(), width_ * 4,
+                     buffer->width(), buffer->height());
 
   gdk_threads_leave();
 

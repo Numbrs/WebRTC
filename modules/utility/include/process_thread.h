@@ -13,7 +13,17 @@
 
 #include <memory>
 
-#include "api/task_queue/queued_task.h"
+#include "typedefs.h"  // NOLINT(build/include)
+
+#if defined(WEBRTC_WIN)
+// Due to a bug in the std::unique_ptr implementation that ships with MSVS,
+// we need the full definition of QueuedTask, on Windows.
+#include "rtc_base/task_queue.h"
+#else
+namespace rtc {
+class QueuedTask;
+}
+#endif
 
 namespace rtc {
 class Location;
@@ -51,7 +61,7 @@ class ProcessThread {
   // construction thread of the ProcessThread instance, if the task did not
   // get a chance to run (e.g. posting the task while shutting down or when
   // the thread never runs).
-  virtual void PostTask(std::unique_ptr<QueuedTask> task) = 0;
+  virtual void PostTask(std::unique_ptr<rtc::QueuedTask> task) = 0;
 
   // Adds a module that will start to receive callbacks on the worker thread.
   // Can be called from any thread.
@@ -64,4 +74,4 @@ class ProcessThread {
 
 }  // namespace webrtc
 
-#endif  // MODULES_UTILITY_INCLUDE_PROCESS_THREAD_H_
+#endif // MODULES_UTILITY_INCLUDE_PROCESS_THREAD_H_

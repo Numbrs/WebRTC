@@ -10,8 +10,6 @@
 
 #include "modules/rtp_rtcp/source/rtcp_packet/bye.h"
 
-#include <string.h>
-#include <cstdint>
 #include <utility>
 
 #include "modules/rtp_rtcp/source/byte_io.h"
@@ -44,7 +42,7 @@ bool Bye::Parse(const CommonHeader& packet) {
   const uint8_t src_count = packet.count();
   // Validate packet.
   if (packet.payload_size_bytes() < 4u * src_count) {
-    RTC_LOG(LS_WARNING)
+    LOG(LS_WARNING)
         << "Packet is too small to contain CSRCs it promise to have.";
     return false;
   }
@@ -54,7 +52,7 @@ bool Bye::Parse(const CommonHeader& packet) {
   if (has_reason) {
     reason_length = payload[4u * src_count];
     if (packet.payload_size_bytes() - 4u * src_count < 1u + reason_length) {
-      RTC_LOG(LS_WARNING) << "Invalid reason length: " << reason_length;
+      LOG(LS_WARNING) << "Invalid reason length: " << reason_length;
       return false;
     }
   }
@@ -82,7 +80,7 @@ bool Bye::Parse(const CommonHeader& packet) {
 bool Bye::Create(uint8_t* packet,
                  size_t* index,
                  size_t max_length,
-                 PacketReadyCallback callback) const {
+                 RtcpPacket::PacketReadyCallback* callback) const {
   while (*index + BlockLength() > max_length) {
     if (!OnBufferFull(packet, index, callback))
       return false;
@@ -117,7 +115,7 @@ bool Bye::Create(uint8_t* packet,
 
 bool Bye::SetCsrcs(std::vector<uint32_t> csrcs) {
   if (csrcs.size() > kMaxNumberOfCsrcs) {
-    RTC_LOG(LS_WARNING) << "Too many CSRCs for Bye packet.";
+    LOG(LS_WARNING) << "Too many CSRCs for Bye packet.";
     return false;
   }
   csrcs_ = std::move(csrcs);

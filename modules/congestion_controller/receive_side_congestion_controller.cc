@@ -11,7 +11,6 @@
 #include "modules/congestion_controller/include/receive_side_congestion_controller.h"
 
 #include "modules/pacing/packet_router.h"
-#include "modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_abs_send_time.h"
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_single_stream.h"
 #include "rtc_base/logging.h"
@@ -23,16 +22,14 @@ static const uint32_t kTimeOffsetSwitchThreshold = 30;
 }  // namespace
 
 ReceiveSideCongestionController::WrappingBitrateEstimator::
-    WrappingBitrateEstimator(RemoteBitrateObserver* observer, Clock* clock)
+    WrappingBitrateEstimator(RemoteBitrateObserver* observer,
+                             const Clock* clock)
     : observer_(observer),
       clock_(clock),
       rbe_(new RemoteBitrateEstimatorSingleStream(observer_, clock_)),
       using_absolute_send_time_(false),
       packets_since_absolute_send_time_(0),
       min_bitrate_bps_(congestion_controller::GetMinBitrateBps()) {}
-
-ReceiveSideCongestionController::WrappingBitrateEstimator::
-    ~WrappingBitrateEstimator() = default;
 
 void ReceiveSideCongestionController::WrappingBitrateEstimator::IncomingPacket(
     int64_t arrival_time_ms,
@@ -86,7 +83,7 @@ void ReceiveSideCongestionController::WrappingBitrateEstimator::
   if (header.extension.hasAbsoluteSendTime) {
     // If we see AST in header, switch RBE strategy immediately.
     if (!using_absolute_send_time_) {
-      RTC_LOG(LS_INFO)
+      LOG(LS_INFO)
           << "WrappingBitrateEstimator: Switching to absolute send time RBE.";
       using_absolute_send_time_ = true;
       PickEstimator();
@@ -97,9 +94,8 @@ void ReceiveSideCongestionController::WrappingBitrateEstimator::
     if (using_absolute_send_time_) {
       ++packets_since_absolute_send_time_;
       if (packets_since_absolute_send_time_ >= kTimeOffsetSwitchThreshold) {
-        RTC_LOG(LS_INFO)
-            << "WrappingBitrateEstimator: Switching to transmission "
-            << "time offset RBE.";
+        LOG(LS_INFO) << "WrappingBitrateEstimator: Switching to transmission "
+                     << "time offset RBE.";
         using_absolute_send_time_ = false;
         PickEstimator();
       }
@@ -119,7 +115,7 @@ void ReceiveSideCongestionController::WrappingBitrateEstimator::
 }
 
 ReceiveSideCongestionController::ReceiveSideCongestionController(
-    Clock* clock,
+    const Clock* clock,
     PacketRouter* packet_router)
     : remote_bitrate_estimator_(packet_router, clock),
       remote_estimator_proxy_(clock, packet_router) {}
@@ -137,12 +133,6 @@ void ReceiveSideCongestionController::OnReceivedPacket(
     remote_bitrate_estimator_.IncomingPacket(arrival_time_ms, payload_size,
                                              header);
   }
-}
-
-void ReceiveSideCongestionController::SetSendFeedbackOnRequestOnly(
-    bool send_feedback_on_request_only) {
-  remote_estimator_proxy_.SetSendFeedbackOnRequestOnly(
-      send_feedback_on_request_only);
 }
 
 RemoteBitrateEstimator*

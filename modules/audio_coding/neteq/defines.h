@@ -24,6 +24,10 @@ enum Operations {
   kRfc3389CngNoPacket,
   kCodecInternalCng,
   kDtmf,
+  kAlternativePlc,
+  kAlternativePlcIncreaseTimestamp,
+  kAudioRepetition,
+  kAudioRepetitionIncreaseTimestamp,
   kUndefined = -1
 };
 
@@ -39,7 +43,6 @@ enum Modes {
   kModePreemptiveExpandFail,
   kModeRfc3389Cng,
   kModeCodecInternalCng,
-  kModeCodecPlc,
   kModeDtmf,
   kModeError,
   kModeUndefined = -1

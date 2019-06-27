@@ -15,7 +15,7 @@
  *
  */
 
-#include "modules/audio_coding/codecs/isac/fix/source/pitch_gain_tables.h"
+#include "pitch_gain_tables.h"
 
 
 /********************* Pitch Filter Gain Coefficient Tables ************************/

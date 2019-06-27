@@ -10,10 +10,6 @@
 
 #include "modules/rtp_rtcp/source/dtmf_queue.h"
 
-#include <stddef.h>
-
-#include "rtc_base/checks.h"
-
 namespace {
 constexpr size_t kDtmfOutbandMax = 20;
 }

@@ -14,14 +14,12 @@
 
 #include "modules/desktop_capture/desktop_capturer.h"
 #include "modules/desktop_capture/desktop_frame_win.h"
+#include "modules/desktop_capture/window_finder_win.h"
 #include "modules/desktop_capture/win/screen_capture_utils.h"
 #include "modules/desktop_capture/win/window_capture_utils.h"
-#include "modules/desktop_capture/window_finder_win.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/string_utils.h"
-#include "rtc_base/trace_event.h"
 #include "rtc_base/win32.h"
 
 namespace webrtc {
@@ -39,14 +37,6 @@ BOOL CALLBACK WindowsEnumerationHandler(HWND hwnd, LPARAM param) {
   LONG exstyle = GetWindowLong(hwnd, GWL_EXSTYLE);
   if (len == 0 || IsIconic(hwnd) || !IsWindowVisible(hwnd) ||
       (owner && !(exstyle & WS_EX_APPWINDOW))) {
-    return TRUE;
-  }
-  // Skip unresponsive windows. Set timout with 50ms, in case system is under
-  // heavy load, the check can wait longer but wont' be too long to delay the
-  // the enumeration.
-  const UINT uTimeout = 50;  // ms
-  if (!SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG, uTimeout,
-                          nullptr)) {
     return TRUE;
   }
 
@@ -112,8 +102,8 @@ bool GetWindowDrawableRect(HWND window,
   }
 
   if (is_maximized) {
-    return GetCroppedWindowRect(window, drawable_rect,
-                                /* original_rect */ nullptr);
+    return GetCroppedWindowRect(
+        window, drawable_rect, /* original_rect */ nullptr);
   }
   *drawable_rect = *original_rect;
   return true;
@@ -141,7 +131,7 @@ class WindowCapturerWin : public DesktopCapturer {
 
   DesktopSize previous_size_;
 
-  WindowCaptureHelperWin window_capture_helper_;
+  AeroChecker aero_checker_;
 
   // This map is used to avoid flickering for the case when SelectWindow() calls
   // are interleaved with Capture() calls.
@@ -161,15 +151,6 @@ bool WindowCapturerWin::GetSourceList(SourceList* sources) {
   // EnumWindows only enumerates root windows.
   if (!EnumWindows(&WindowsEnumerationHandler, param))
     return false;
-
-  for (auto it = result.begin(); it != result.end();) {
-    if (!window_capture_helper_.IsWindowOnCurrentDesktop(
-            reinterpret_cast<HWND>(it->id))) {
-      it = result.erase(it);
-    } else {
-      ++it;
-    }
-  }
   sources->swap(result);
 
   std::map<HWND, DesktopSize> new_map;
@@ -206,8 +187,8 @@ bool WindowCapturerWin::FocusOnSelectedSource() {
 
 bool WindowCapturerWin::IsOccluded(const DesktopVector& pos) {
   DesktopVector sys_pos = pos.add(GetFullscreenRect().top_left());
-  return reinterpret_cast<HWND>(window_finder_.GetWindowUnderPoint(sys_pos)) !=
-         window_;
+  return reinterpret_cast<HWND>(window_finder_.GetWindowUnderPoint(sys_pos))
+      != window_;
 }
 
 void WindowCapturerWin::Start(Callback* callback) {
@@ -218,17 +199,14 @@ void WindowCapturerWin::Start(Callback* callback) {
 }
 
 void WindowCapturerWin::CaptureFrame() {
-  TRACE_EVENT0("webrtc", "WindowCapturerWin::CaptureFrame");
-
   if (!window_) {
-    RTC_LOG(LS_ERROR) << "Window hasn't been selected: " << GetLastError();
+    LOG(LS_ERROR) << "Window hasn't been selected: " << GetLastError();
     callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
     return;
   }
 
   // Stop capturing if the window has been closed.
   if (!IsWindow(window_)) {
-    RTC_LOG(LS_ERROR) << "target window has been closed";
     callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
     return;
   }
@@ -236,19 +214,20 @@ void WindowCapturerWin::CaptureFrame() {
   DesktopRect cropped_rect;
   DesktopRect original_rect;
   if (!GetWindowDrawableRect(window_, &cropped_rect, &original_rect)) {
-    RTC_LOG(LS_WARNING) << "Failed to get drawable window area: "
-                        << GetLastError();
+    LOG(LS_WARNING) << "Failed to get drawable window area: " << GetLastError();
     callback_->OnCaptureResult(Result::ERROR_TEMPORARY, nullptr);
     return;
   }
 
-  // Return a 1x1 black frame if the window is minimized or invisible on current
-  // desktop, to match behavior on mace. Window can be temporarily invisible
-  // during the transition of full screen mode on/off.
+  // Return a 1x1 black frame if the window is minimized or invisible, to match
+  // behavior on mace. Window can be temporarily invisible during the
+  // transition of full screen mode on/off.
   if (original_rect.is_empty() ||
-      !window_capture_helper_.IsWindowVisibleOnCurrentDesktop(window_)) {
+      IsIconic(window_) ||
+      !IsWindowVisible(window_)) {
     std::unique_ptr<DesktopFrame> frame(
         new BasicDesktopFrame(DesktopSize(1, 1)));
+    memset(frame->data(), 0, frame->stride() * frame->size().height());
 
     previous_size_ = frame->size();
     window_size_map_[window_] = previous_size_;
@@ -258,7 +237,7 @@ void WindowCapturerWin::CaptureFrame() {
 
   HDC window_dc = GetWindowDC(window_);
   if (!window_dc) {
-    RTC_LOG(LS_WARNING) << "Failed to get window DC: " << GetLastError();
+    LOG(LS_WARNING) << "Failed to get window DC: " << GetLastError();
     callback_->OnCaptureResult(Result::ERROR_TEMPORARY, nullptr);
     return;
   }
@@ -289,7 +268,6 @@ void WindowCapturerWin::CaptureFrame() {
   std::unique_ptr<DesktopFrameWin> frame(
       DesktopFrameWin::Create(cropped_rect.size(), nullptr, window_dc));
   if (!frame.get()) {
-    RTC_LOG(LS_WARNING) << "Failed to create frame.";
     ReleaseDC(window_, window_dc);
     callback_->OnCaptureResult(Result::ERROR_TEMPORARY, nullptr);
     return;
@@ -316,16 +294,17 @@ void WindowCapturerWin::CaptureFrame() {
   // capturing - it somehow affects what we get from BitBlt() on the subsequent
   // captures.
 
-  if (!window_capture_helper_.IsAeroEnabled() ||
-      !previous_size_.equals(frame->size())) {
+  if (!aero_checker_.IsAeroEnabled() || !previous_size_.equals(frame->size())) {
     result = PrintWindow(window_, mem_dc, 0);
   }
 
   // Aero is enabled or PrintWindow() failed, use BitBlt.
   if (!result) {
     result = BitBlt(mem_dc, 0, 0, frame->size().width(), frame->size().height(),
-                    window_dc, cropped_rect.left() - original_rect.left(),
-                    cropped_rect.top() - original_rect.top(), SRCCOPY);
+                    window_dc,
+                    cropped_rect.left() - original_rect.left(),
+                    cropped_rect.top() - original_rect.top(),
+                    SRCCOPY);
   }
 
   SelectObject(mem_dc, previous_object);
@@ -343,7 +322,7 @@ void WindowCapturerWin::CaptureFrame() {
   if (result) {
     callback_->OnCaptureResult(Result::SUCCESS, std::move(frame));
   } else {
-    RTC_LOG(LS_ERROR) << "Both PrintWindow() and BitBlt() failed.";
+    LOG(LS_ERROR) << "Both PrintWindow() and BitBlt() failed.";
     callback_->OnCaptureResult(Result::ERROR_TEMPORARY, nullptr);
   }
 }

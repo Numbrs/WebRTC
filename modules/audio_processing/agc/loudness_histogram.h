@@ -11,8 +11,11 @@
 #ifndef MODULES_AUDIO_PROCESSING_AGC_LOUDNESS_HISTOGRAM_H_
 #define MODULES_AUDIO_PROCESSING_AGC_LOUDNESS_HISTOGRAM_H_
 
-#include <stdint.h>
+#include <string.h>
+
 #include <memory>
+
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 

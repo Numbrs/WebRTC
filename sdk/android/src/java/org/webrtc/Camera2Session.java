@@ -17,20 +17,19 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.MeteringRectangle;
+import android.media.MediaRecorder;
 import android.os.Handler;
-import android.support.annotation.Nullable;
 import android.util.Range;
 import android.view.Surface;
 import android.view.WindowManager;
+
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.webrtc.CameraEnumerationAndroid.CaptureFormat;
@@ -53,13 +52,14 @@ public class Camera2Session implements CameraSession {
   private static final int DEFAULT_BLACK_FRAME_PIXELS_TO_CHECK = 0;
   private static final int DEFAULT_BLACK_COLOR_THRESHOLD = -1;
 
+  private final boolean videoFrameEmitTrialEnabled;
+
   private final Handler cameraThreadHandler;
   private final CreateSessionCallback callback;
   private final Events events;
   private final CameraManager cameraManager;
   private final SurfaceTextureHelper surfaceTextureHelper;
-
-  @Nullable
+  private final Surface mediaRecorderSurface;
   private final String cameraId;
   private final int width;
   private final int height;
@@ -73,22 +73,21 @@ public class Camera2Session implements CameraSession {
   private final RtcCameraInfo camera;
   private final CaptureSessionCallback captureSessionCallback = new CaptureSessionCallback();
 
-  @Nullable
   private CaptureFormat captureFormat;
 
   private boolean isTorchStateOn;
   private CaptureRequest.Builder captureRequestBuilder;
 
   // Initialized when camera opens
-  @Nullable private CameraDevice cameraDevice;
-  @Nullable private Surface surface;
+  private CameraDevice cameraDevice;
+  private Surface surface;
 
   // Initialized when capture session is created
-  @Nullable private CameraCaptureSession captureSession;
+  private CameraCaptureSession captureSession;
 
   // State
   private SessionState state = SessionState.RUNNING;
-  private boolean firstFrameReported;
+  private boolean firstFrameReported = false;
 
   // Used only for stats. Only used on the camera thread.
   private final long constructionTimeNs; // Construction time of this class.
@@ -144,11 +143,17 @@ public class Camera2Session implements CameraSession {
       Logging.d(TAG, "Camera opened.");
       cameraDevice = camera;
 
-      surfaceTextureHelper.setTextureSize(captureFormat.width, captureFormat.height);
-      surface = new Surface(surfaceTextureHelper.getSurfaceTexture());
+      final SurfaceTexture surfaceTexture = surfaceTextureHelper.getSurfaceTexture();
+      surfaceTexture.setDefaultBufferSize(captureFormat.width, captureFormat.height);
+      surface = new Surface(surfaceTexture);
+      List<Surface> surfaces = new ArrayList<Surface>();
+      surfaces.add(surface);
+      if (mediaRecorderSurface != null) {
+        Logging.d(TAG, "Add MediaRecorder surface to capture session.");
+        surfaces.add(mediaRecorderSurface);
+      }
       try {
-        camera.createCaptureSession(
-            Arrays.asList(surface), captureSessionCallback, cameraThreadHandler);
+        camera.createCaptureSession(surfaces, captureSessionCallback, cameraThreadHandler);
       } catch (CameraAccessException e) {
         reportError("Failed to create capture session. " + e);
         return;
@@ -187,43 +192,60 @@ public class Camera2Session implements CameraSession {
       blackFramesFilterOn = shouldUseBlackFramesFilter;
       Logging.d(TAG, "reset blackFramesFilterOn to " + shouldUseBlackFramesFilter);
 
-      surfaceTextureHelper.startListening((VideoFrame frame) -> {
-        checkIsOnCameraThread();
+      surfaceTextureHelper.startListening(
+          new SurfaceTextureHelper.OnTextureFrameAvailableListener() {
+            @Override
+            public void onTextureFrameAvailable(
+                int oesTextureId, float[] transformMatrix, long timestampNs) {
+              checkIsOnCameraThread();
 
-        if (state != SessionState.RUNNING) {
-          Logging.d(TAG, "Texture frame captured but camera is no longer running.");
-          return;
-        }
+              if (state != SessionState.RUNNING) {
+                Logging.d(TAG, "Texture frame captured but camera is no longer running.");
+                surfaceTextureHelper.returnTextureFrame();
+                return;
+              }
 
-        if(filterBlackFrame((TextureBufferImpl) frame.getBuffer())){
-          return;
-        }
+              if(filterBlackFrame(transformMatrix)){
+                  return;
+              }
 
-        if (!firstFrameReported) {
-          firstFrameReported = true;
-          final int startTimeMs =
-              (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
-          camera2StartTimeMsHistogram.addSample(startTimeMs);
-        }
+              if (!firstFrameReported) {
+                firstFrameReported = true;
+                final int startTimeMs =
+                    (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
+                camera2StartTimeMsHistogram.addSample(startTimeMs);
+              }
 
-        // Undo the mirror that the OS "helps" us with.
-        // http://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
-        // Also, undo camera orientation, we report it as rotation instead.
-        final VideoFrame modifiedFrame =
-            new VideoFrame(CameraSession.createTextureBufferWithModifiedTransformMatrix(
-                               (TextureBufferImpl) frame.getBuffer(),
-                               /* mirror= */ isCameraFrontFacing,
-                               /* rotation= */ -cameraOrientation),
-                /* rotation= */ getFrameOrientation(), frame.getTimestampNs());
-        events.onFrameCaptured(Camera2Session.this, modifiedFrame);
-        modifiedFrame.release();
-      });
+              int rotation = getFrameOrientation();
+              if (isCameraFrontFacing) {
+                // Undo the mirror that the OS "helps" us with.
+                // http://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
+                transformMatrix = RendererCommon.multiplyMatrices(
+                    transformMatrix, RendererCommon.horizontalFlipMatrix());
+              }
+
+              // Undo camera orientation - we report it as rotation instead.
+              transformMatrix =
+                  RendererCommon.rotateTextureMatrix(transformMatrix, -cameraOrientation);
+
+              if (videoFrameEmitTrialEnabled) {
+                VideoFrame.Buffer buffer = surfaceTextureHelper.createTextureBuffer(
+                    captureFormat.width, captureFormat.height,
+                    RendererCommon.convertMatrixToAndroidGraphicsMatrix(transformMatrix));
+                final VideoFrame frame = new VideoFrame(buffer, rotation, timestampNs);
+                events.onFrameCaptured(Camera2Session.this, frame);
+                frame.release();
+              } else {
+                events.onTextureFrameCaptured(Camera2Session.this, captureFormat.width,
+                    captureFormat.height, oesTextureId, transformMatrix, rotation, timestampNs);
+              }
+            }
+          });
       Logging.d(TAG, "Camera device successfully started.");
       callback.onDone(Camera2Session.this);
     }
 
     public void startVideoRequest() throws CameraAccessException {
-
       if (cameraDevice == null) {
         throw new CameraAccessException(CameraAccessException.CAMERA_DISCONNECTED);
       }
@@ -244,6 +266,10 @@ public class Camera2Session implements CameraSession {
       chooseTorchState(captureRequestBuilder);
 
       captureRequestBuilder.addTarget(surface);
+      if (mediaRecorderSurface != null) {
+        Logging.d(TAG, "Add MediaRecorder surface to CaptureRequest.Builder");
+        captureRequestBuilder.addTarget(mediaRecorderSurface);
+      }
       captureSession.setRepeatingRequest(
               captureRequestBuilder.build(), new CameraCaptureCallback(), cameraThreadHandler
       );
@@ -252,8 +278,7 @@ public class Camera2Session implements CameraSession {
     // Prefers optical stabilization over software stabilization if available. Only enables one of
     // the stabilization modes at a time because having both enabled can cause strange results.
     private void chooseStabilizationMode(CaptureRequest.Builder captureRequestBuilder) {
-      final List<Integer> availableOpticalStabilization =
-              camera.getAvailableOpticalStabilizationModes();
+      final List<Integer> availableOpticalStabilization = camera.getAvailableOpticalStabilizationModes();
       if (availableOpticalStabilization != null) {
         for (int mode : availableOpticalStabilization) {
           if (mode == CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON) {
@@ -267,8 +292,7 @@ public class Camera2Session implements CameraSession {
         }
       }
       // If no optical mode is available, try software.
-      final List<Integer> availableVideoStabilization =
-              camera.getAvailableVideoStabilizationModes();
+      final List<Integer> availableVideoStabilization = camera.getAvailableVideoStabilizationModes();
       for (int mode : availableVideoStabilization) {
         if (mode == CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON) {
           captureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
@@ -309,7 +333,7 @@ public class Camera2Session implements CameraSession {
     }
   }
 
-  private static class CameraCaptureCallback extends CameraCaptureSession.CaptureCallback {
+  private class CameraCaptureCallback extends CameraCaptureSession.CaptureCallback {
     @Override
     public void onCaptureFailed(
         CameraCaptureSession session, CaptureRequest request, CaptureFailure failure) {
@@ -322,6 +346,7 @@ public class Camera2Session implements CameraSession {
           Events events,
           CameraManager cameraManager,
           SurfaceTextureHelper surfaceTextureHelper,
+          MediaRecorder mediaRecorder,
           RtcCameraInfo camera,
           int displayRotation,
           int blackFramesFilterPixelsToCheck,
@@ -338,10 +363,14 @@ public class Camera2Session implements CameraSession {
     this.shouldUseBlackFramesFilter = blackFramesFilterBlackThreshold > -1 && blackFramesFilterPixelsToCheck > 0;
 
     Logging.d(TAG, "Create new camera2 session on camera " + cameraId);
+    videoFrameEmitTrialEnabled =
+            PeerConnectionFactory.fieldTrialsFindFullName(PeerConnectionFactory.VIDEO_FRAME_EMIT_TRIAL)
+                    .equals(PeerConnectionFactory.TRIAL_ENABLED);
 
     constructionTimeNs = System.nanoTime();
 
     cameraThreadHandler = new Handler();
+    mediaRecorderSurface = (mediaRecorder != null) ? mediaRecorder.getSurface() : null;
 
     this.callback = callback;
     this.events = events;
@@ -366,7 +395,6 @@ public class Camera2Session implements CameraSession {
 
   private void findCaptureFormat() {
     checkIsOnCameraThread();
-
     camera.set(width, height, framerate);
 
     captureFormat = camera.getCaptureFormat();
@@ -479,140 +507,148 @@ public class Camera2Session implements CameraSession {
     }
   }
 
-    private MeteringRectangle measureFocusArea() {
-      final Rect sensorArraySize = camera.getActiveArraySizeRect();
-      final int side = Math.min(sensorArraySize.width(), sensorArraySize.height()) / SIDE_RELATIVE_SIZE;
-      final int x = sensorArraySize.centerX() - (side / 2);
-      final int y = sensorArraySize.centerY() - (side / 2);
-      return new MeteringRectangle(x, y, side, side, MeteringRectangle.METERING_WEIGHT_MAX - 1);
+  private MeteringRectangle measureFocusArea() {
+    final Rect sensorArraySize = camera.getActiveArraySizeRect();
+    final int side = Math.min(sensorArraySize.width(), sensorArraySize.height()) / SIDE_RELATIVE_SIZE;
+    final int x = sensorArraySize.centerX() - (side / 2);
+    final int y = sensorArraySize.centerY() - (side / 2);
+    return new MeteringRectangle(x, y, side, side, MeteringRectangle.METERING_WEIGHT_MAX - 1);
+  }
+
+  @Override
+  public void setFlashState(boolean isFlashTorchOn) {
+    isTorchStateOn = isFlashTorchOn;
+  }
+
+  @Override
+  public void restartVideoRequest() throws CameraAccessException {
+    captureSessionCallback.startVideoRequest();
+  }
+
+  @Override
+  public void triggerAutofocus() throws CameraAccessException {
+    if (!camera.applyAutoFocusFix()) {
+      return;
     }
+    captureRequestBuilder.set(CaptureRequest.CONTROL_AF_REGIONS, new MeteringRectangle[]{focusArea});
+    captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
+    captureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
+    captureSession.capture(captureRequestBuilder.build(), null, cameraThreadHandler);
 
-    @Override
-    public void setFlashState(boolean isFlashTorchOn) {
-      isTorchStateOn = isFlashTorchOn;
-    }
+    captureRequestBuilder.set(CaptureRequest.CONTROL_AF_REGIONS, new MeteringRectangle[]{focusArea});
+    captureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+    captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
+    captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, cameraThreadHandler);
+  }
 
-    @Override
-    public void restartVideoRequest() throws CameraAccessException {
-      captureSessionCallback.startVideoRequest();
-    }
-
-    @Override
-    public void triggerAutofocus() throws CameraAccessException {
-      if (!camera.applyAutoFocusFix()) {
-        return;
-      }
-      captureRequestBuilder.set(CaptureRequest.CONTROL_AF_REGIONS, new MeteringRectangle[]{focusArea});
-      captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
-      captureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
-      captureSession.capture(captureRequestBuilder.build(), null, cameraThreadHandler);
-
-      captureRequestBuilder.set(CaptureRequest.CONTROL_AF_REGIONS, new MeteringRectangle[]{focusArea});
-      captureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
-      captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
-      captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, cameraThreadHandler);
-    }
-
-    /**
-     * Called on each captured frame. The filter flag is reset to initial state every time a capturing
-     * session starts, it is then turned off when the first non-black frame is found.
-     */
-    private boolean filterBlackFrame(VideoFrame.TextureBuffer buffer) {
-      if (blackFramesFilterOn) {
-        final VideoFrame.I420Buffer i420Buffer = buffer.toI420();
-        final boolean isBlackFrame = isBlackFrame(i420Buffer);
-        i420Buffer.release();
-        buffer.release();
-        if (isBlackFrame) {
-          Logging.d(TAG, "Skipping black frame");
-          return true;
-        } else {
-          blackFramesFilterOn = false;
-          Logging.d(TAG, "black frame found - blackFramesFilterOn set to false");
-        }
-      }
-      return false;
-    }
-
-    /**
-     * Checks a number of pixels (defined by {@link Camera2Session:blackFramesFilterPixelsToCheck}, on
-     * a given frame, if one of the pixel's luminance exceeds a certain value
-     * ({@link Camera2Session:blackFramesFilterBlackThreshold}) then the frame is considered to be
-     * non-black
-     */
-    private boolean isBlackFrame(VideoFrame.I420Buffer buffer) {
-      final ByteBuffer yData = buffer.getDataY();
-      final int yDataSize = buffer.getStrideY() * buffer.getHeight();
-      final int pixelsStep = yDataSize / blackFramesFilterPixelsToCheck;
-      for (int i=0; i < yDataSize;i += pixelsStep) {
-        final byte y = yData.get(i);
-        final int value = y & 0xff;
-        if (value > blackFramesFilterBlackThreshold) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    public static Camera2Session create(
-            CreateSessionCallback callback,
-            Events events,
-            Context applicationContext,
-            CameraManager cameraManager,
-            SurfaceTextureHelper surfaceTextureHelper,
-            RtcCameraInfo camera,
-    int blackFramesFilterPixelsToCheck,
-    int blackFramesFilterBlackThreshold) {
-
-      final WindowManager windowManager = (WindowManager) applicationContext.getSystemService(Context.WINDOW_SERVICE);
-      final int displayRotation = windowManager != null ? windowManager.getDefaultDisplay().getRotation() : 0;
-
-      return new Camera2Session(
-              callback,
-              events,
-              cameraManager,
-              surfaceTextureHelper,
-              camera,
-              displayRotation,
-              blackFramesFilterPixelsToCheck,
-              blackFramesFilterBlackThreshold
+  /**
+   * Called on each captured frame. The filter flag is reset to initial state every time a capturing
+   * session starts, it is then turned off when the first non-black frame is found.
+   */
+  private boolean filterBlackFrame(float[] transformMatrix) {
+    if (blackFramesFilterOn) {
+      final VideoFrame.TextureBuffer buffer = surfaceTextureHelper.createTextureBuffer(
+          captureFormat.width, captureFormat.height,
+          RendererCommon.convertMatrixToAndroidGraphicsMatrix(transformMatrix)
       );
+      final VideoFrame.I420Buffer i420Buffer = buffer.toI420();
+      final boolean isBlackFrame = isBlackFrame(i420Buffer);
+      i420Buffer.release();
+      buffer.release();
+      if (isBlackFrame) {
+        Logging.d(TAG, "Skipping black frame");
+        surfaceTextureHelper.returnTextureFrame();
+        return true;
+      } else {
+        blackFramesFilterOn = false;
+        Logging.d(TAG, "black frame found - blackFramesFilterOn set to false");
+      }
     }
+    return false;
+  }
 
-    public static Camera2Session create(
-            CreateSessionCallback callback,
-            Events events,
-            Context applicationContext,
-            CameraManager cameraManager,
-            SurfaceTextureHelper surfaceTextureHelper,
-            String cameraId,
-            int width,
-            int height,
-            int framerate) {
-
-      final WindowManager windowManager = (WindowManager) applicationContext.getSystemService(Context.WINDOW_SERVICE);
-      final int displayRotation = windowManager != null ? windowManager.getDefaultDisplay().getRotation() : 0;
-
-      final RtcCameraInfo camera = Camera2InfoImpl.create(
-              applicationContext,
-              cameraId,
-              1,
-              width,
-              height,
-              framerate,
-              false,
-              false
-      );
-
-      return new Camera2Session(
-              callback,
-              events,
-              cameraManager,
-              surfaceTextureHelper,
-              camera,
-              displayRotation,
-              DEFAULT_BLACK_FRAME_PIXELS_TO_CHECK,
-              DEFAULT_BLACK_COLOR_THRESHOLD);
+  /**
+   * Checks a number of pixels (defined by {@link Camera2Session:blackFramesFilterPixelsToCheck}, on
+   * a given frame, if one of the pixel's luminance exceeds a certain value
+   * ({@link Camera2Session:blackFramesFilterBlackThreshold}) then the frame si considered to be
+   * non-black
+   */
+  private boolean isBlackFrame(VideoFrame.I420Buffer buffer) {
+    final ByteBuffer yData = buffer.getDataY();
+    final int yDataSize = buffer.getStrideY() * buffer.getHeight();
+    final int pixelsStep = yDataSize / blackFramesFilterPixelsToCheck;
+    for (int i=0; i < yDataSize;i += pixelsStep) {
+      final byte y = yData.get(i);
+      final int value = y & 0xff;
+      if (value > blackFramesFilterBlackThreshold) {
+        return false;
+      }
     }
+    return true;
+  }
 
+  public static Camera2Session create(
+          CreateSessionCallback callback,
+          Events events,
+          Context applicationContext,
+          CameraManager cameraManager,
+          SurfaceTextureHelper surfaceTextureHelper,
+          MediaRecorder mediaRecorder,
+          RtcCameraInfo camera,
+          int blackFramesFilterPixelsToCheck,
+          int blackFramesFilterBlackThreshold) {
+
+    final WindowManager windowManager = (WindowManager) applicationContext.getSystemService(Context.WINDOW_SERVICE);
+    final int displayRotation = windowManager != null ? windowManager.getDefaultDisplay().getRotation() : 0;
+
+    return new Camera2Session(
+            callback,
+            events,
+            cameraManager,
+            surfaceTextureHelper,
+            mediaRecorder,
+            camera,
+            displayRotation,
+            blackFramesFilterPixelsToCheck,
+            blackFramesFilterBlackThreshold
+    );
+  }
+
+  public static Camera2Session create(
+          CreateSessionCallback callback,
+          Events events,
+          Context applicationContext,
+          CameraManager cameraManager,
+          SurfaceTextureHelper surfaceTextureHelper,
+          MediaRecorder mediaRecorder,
+          String cameraId,
+          int width,
+          int height,
+          int frameRate) {
+
+    final WindowManager windowManager = (WindowManager) applicationContext.getSystemService(Context.WINDOW_SERVICE);
+    final int displayRotation = windowManager != null ? windowManager.getDefaultDisplay().getRotation() : 0;
+
+    final RtcCameraInfo camera = Camera2InfoImpl.create(
+            applicationContext,
+            cameraId,
+            1,
+            width,
+            height,
+            frameRate,
+            false,
+            false
+    );
+
+    return new Camera2Session(
+            callback,
+            events,
+            cameraManager,
+            surfaceTextureHelper,
+            mediaRecorder,
+            camera,
+            displayRotation,
+            DEFAULT_BLACK_FRAME_PIXELS_TO_CHECK,
+            DEFAULT_BLACK_COLOR_THRESHOLD);
+  }
 }

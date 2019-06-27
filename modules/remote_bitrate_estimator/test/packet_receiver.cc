@@ -10,12 +10,14 @@
 
 #include "modules/remote_bitrate_estimator/test/packet_receiver.h"
 
-#include <list>
 #include <vector>
 
+#include "modules/include/module_common_types.h"
 #include "modules/remote_bitrate_estimator/test/bwe.h"
 #include "modules/remote_bitrate_estimator/test/bwe_test_framework.h"
-#include "modules/remote_bitrate_estimator/test/bwe_test_logging.h"
+#include "modules/rtp_rtcp/include/receive_statistics.h"
+#include "system_wrappers/include/clock.h"
+#include "test/gtest.h"
 
 namespace webrtc {
 namespace testing {
@@ -66,9 +68,11 @@ PacketReceiver::PacketReceiver(PacketProcessorListener* listener,
                      bwe_type,
                      plot_delay,
                      plot_bwe,
-                     nullptr) {}
+                     nullptr) {
+}
 
-PacketReceiver::~PacketReceiver() {}
+PacketReceiver::~PacketReceiver() {
+}
 
 void PacketReceiver::RunFor(int64_t time_ms, Packets* in_out) {
   Packets feedback;

@@ -47,31 +47,29 @@ public class EglRendererTest {
   private final static byte[][][] TEST_FRAMES_DATA = {
       {
           new byte[] {
-              -99, -93, -88, -83, -78, -73, -68, -62, -56, -52, -46, -41, -36, -31, -26, -20},
-          new byte[] {110, 113, 116, 118}, new byte[] {31, 45, 59, 73},
+              11, -12, 13, -14, -15, 16, -17, 18, 19, -110, 111, -112, -113, 114, -115, 116},
+          new byte[] {117, 118, 119, 120}, new byte[] {121, 122, 123, 124},
       },
       {
-          new byte[] {
-              -108, -103, -98, -93, -87, -82, -77, -72, -67, -62, -56, -50, -45, -40, -35, -30},
-          new byte[] {120, 123, 125, -127}, new byte[] {87, 100, 114, 127},
+          new byte[] {-11, -12, -13, -14, -15, -16, -17, -18, -19, -110, -111, -112, -113, -114,
+              -115, -116},
+          new byte[] {-121, -122, -123, -124}, new byte[] {-117, -118, -119, -120},
       },
       {
-          new byte[] {
-              -117, -112, -107, -102, -97, -92, -87, -81, -75, -71, -65, -60, -55, -50, -44, -39},
-          new byte[] {113, 116, 118, 120}, new byte[] {45, 59, 73, 87},
+          new byte[] {-11, -12, -13, -14, -15, -16, -17, -18, -19, -110, -111, -112, -113, -114,
+              -115, -116},
+          new byte[] {117, 118, 119, 120}, new byte[] {121, 122, 123, 124},
       },
   };
   private final static ByteBuffer[][] TEST_FRAMES =
       copyTestDataToDirectByteBuffers(TEST_FRAMES_DATA);
 
-  private static class TestFrameListener implements EglRenderer.FrameListener {
+  private class TestFrameListener implements EglRenderer.FrameListener {
     final private ArrayList<Bitmap> bitmaps = new ArrayList<Bitmap>();
     boolean bitmapReceived;
     Bitmap storedBitmap;
 
     @Override
-    // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
-    @SuppressWarnings("NoSynchronizedMethodCheck")
     public synchronized void onFrame(Bitmap bitmap) {
       if (bitmapReceived) {
         fail("Unexpected bitmap was received.");
@@ -82,22 +80,13 @@ public class EglRendererTest {
       notify();
     }
 
-    // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
-    @SuppressWarnings("NoSynchronizedMethodCheck")
     public synchronized boolean waitForBitmap(int timeoutMs) throws InterruptedException {
-      final long endTimeMs = System.currentTimeMillis() + timeoutMs;
-      while (!bitmapReceived) {
-        final long waitTimeMs = endTimeMs - System.currentTimeMillis();
-        if (waitTimeMs < 0) {
-          return false;
-        }
+      if (!bitmapReceived) {
         wait(timeoutMs);
       }
-      return true;
+      return bitmapReceived;
     }
 
-    // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
-    @SuppressWarnings("NoSynchronizedMethodCheck")
     public synchronized Bitmap resetAndGetBitmap() {
       bitmapReceived = false;
       return storedBitmap;
@@ -113,10 +102,8 @@ public class EglRendererTest {
 
   @Before
   public void setUp() throws Exception {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
+    PeerConnectionFactory.initializeAndroidGlobals(
+        InstrumentationRegistry.getTargetContext(), true /* videoHwAcceleration */);
     eglRenderer = new EglRenderer("TestRenderer: ");
     eglRenderer.init(null /* sharedContext */, EglBase.CONFIG_RGBA, new GlRectDrawer());
     oesTextureId = GlUtil.generateTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES);
@@ -176,7 +163,7 @@ public class EglRendererTest {
     float highYValue = (plane.get(highIndexY * stride + lowIndexX) & 0xFF) * lowWeightX
         + (plane.get(highIndexY * stride + highIndexX) & 0xFF) * highWeightX;
 
-    return lowWeightY * lowYValue + highWeightY * highYValue;
+    return (lowWeightY * lowYValue + highWeightY * highYValue) / 255f;
   }
 
   private static byte saturatedFloatToByte(float c) {
@@ -200,16 +187,15 @@ public class EglRendererTest {
 
     for (int y = 0; y < TEST_FRAME_HEIGHT; y++) {
       for (int x = 0; x < TEST_FRAME_WIDTH; x++) {
-        final float yC = ((yuvFrame[0].get(y * yStride + x) & 0xFF) - 16f) / 219f;
-        final float uC = (linearSample(yuvFrame[1], TEST_FRAME_WIDTH / 2, TEST_FRAME_HEIGHT / 2,
-                              (x + 0.5f) / TEST_FRAME_WIDTH, (y + 0.5f) / TEST_FRAME_HEIGHT)
-                             - 16f)
-                / 224f
+        final int x2 = x / 2;
+        final int y2 = y / 2;
+
+        final float yC = (yuvFrame[0].get(y * yStride + x) & 0xFF) / 255f;
+        final float uC = linearSample(yuvFrame[1], TEST_FRAME_WIDTH / 2, TEST_FRAME_HEIGHT / 2,
+                             (x + 0.5f) / TEST_FRAME_WIDTH, (y + 0.5f) / TEST_FRAME_HEIGHT)
             - 0.5f;
-        final float vC = (linearSample(yuvFrame[2], TEST_FRAME_WIDTH / 2, TEST_FRAME_HEIGHT / 2,
-                              (x + 0.5f) / TEST_FRAME_WIDTH, (y + 0.5f) / TEST_FRAME_HEIGHT)
-                             - 16f)
-                / 224f
+        final float vC = linearSample(yuvFrame[2], TEST_FRAME_WIDTH / 2, TEST_FRAME_HEIGHT / 2,
+                             (x + 0.5f) / TEST_FRAME_WIDTH, (y + 0.5f) / TEST_FRAME_HEIGHT)
             - 0.5f;
         final float rC = yC + 1.403f * vC;
         final float gC = yC - 0.344f * uC - 0.714f * vC;
@@ -226,8 +212,6 @@ public class EglRendererTest {
   }
 
   /** Checks that the bitmap content matches the test frame with the given index. */
-  // TODO(titovartem) make correct fix during webrtc:9175
-  @SuppressWarnings("ByteBufferBackingArray")
   private static void checkBitmapContent(Bitmap bitmap, int frame) {
     checkBitmap(bitmap, 1f);
 
@@ -250,12 +234,9 @@ public class EglRendererTest {
 
   /** Tells eglRenderer to render test frame with given index. */
   private void feedFrame(int i) {
-    final VideoFrame.I420Buffer buffer = JavaI420Buffer.wrap(TEST_FRAME_WIDTH, TEST_FRAME_HEIGHT,
-        TEST_FRAMES[i][0], TEST_FRAME_WIDTH, TEST_FRAMES[i][1], TEST_FRAME_WIDTH / 2,
-        TEST_FRAMES[i][2], TEST_FRAME_WIDTH / 2, null /* releaseCallback */);
-    final VideoFrame frame = new VideoFrame(buffer, 0 /* rotation */, 0 /* timestamp */);
-    eglRenderer.onFrame(frame);
-    frame.release();
+    eglRenderer.renderFrame(new VideoRenderer.I420Frame(TEST_FRAME_WIDTH, TEST_FRAME_HEIGHT, 0,
+        new int[] {TEST_FRAME_WIDTH, TEST_FRAME_WIDTH / 2, TEST_FRAME_WIDTH / 2}, TEST_FRAMES[i],
+        0));
   }
 
   @Test

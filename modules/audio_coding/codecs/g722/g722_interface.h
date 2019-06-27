@@ -11,25 +11,26 @@
 #ifndef MODULES_AUDIO_CODING_CODECS_G722_G722_INTERFACE_H_
 #define MODULES_AUDIO_CODING_CODECS_G722_G722_INTERFACE_H_
 
-#include <stdint.h>
+#include "typedefs.h"  // NOLINT(build/include)
 
 /*
  * Solution to support multiple instances
  */
 
-typedef struct WebRtcG722EncInst G722EncInst;
-typedef struct WebRtcG722DecInst G722DecInst;
+typedef struct WebRtcG722EncInst    G722EncInst;
+typedef struct WebRtcG722DecInst    G722DecInst;
 
 /*
  * Comfort noise constants
  */
 
-#define G722_WEBRTC_SPEECH 1
-#define G722_WEBRTC_CNG 2
+#define G722_WEBRTC_SPEECH     1
+#define G722_WEBRTC_CNG        2
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 /****************************************************************************
  * WebRtcG722_CreateEncoder(...)
@@ -42,7 +43,8 @@ extern "C" {
  * Return value               :  0 - Ok
  *                              -1 - Error
  */
-int16_t WebRtcG722_CreateEncoder(G722EncInst** G722enc_inst);
+int16_t WebRtcG722_CreateEncoder(G722EncInst **G722enc_inst);
+
 
 /****************************************************************************
  * WebRtcG722_EncoderInit(...)
@@ -57,7 +59,8 @@ int16_t WebRtcG722_CreateEncoder(G722EncInst** G722enc_inst);
  *                              -1 - Error
  */
 
-int16_t WebRtcG722_EncoderInit(G722EncInst* G722enc_inst);
+int16_t WebRtcG722_EncoderInit(G722EncInst *G722enc_inst);
+
 
 /****************************************************************************
  * WebRtcG722_FreeEncoder(...)
@@ -70,7 +73,9 @@ int16_t WebRtcG722_EncoderInit(G722EncInst* G722enc_inst);
  * Return value               :  0 - Ok
  *                              -1 - Error
  */
-int WebRtcG722_FreeEncoder(G722EncInst* G722enc_inst);
+int WebRtcG722_FreeEncoder(G722EncInst *G722enc_inst);
+
+
 
 /****************************************************************************
  * WebRtcG722_Encode(...)
@@ -94,6 +99,7 @@ size_t WebRtcG722_Encode(G722EncInst* G722enc_inst,
                          size_t len,
                          uint8_t* encoded);
 
+
 /****************************************************************************
  * WebRtcG722_CreateDecoder(...)
  *
@@ -105,7 +111,7 @@ size_t WebRtcG722_Encode(G722EncInst* G722enc_inst,
  * Return value               :  0 - Ok
  *                              -1 - Error
  */
-int16_t WebRtcG722_CreateDecoder(G722DecInst** G722dec_inst);
+int16_t WebRtcG722_CreateDecoder(G722DecInst **G722dec_inst);
 
 /****************************************************************************
  * WebRtcG722_DecoderInit(...)
@@ -130,7 +136,8 @@ void WebRtcG722_DecoderInit(G722DecInst* inst);
  *                              -1 - Error
  */
 
-int WebRtcG722_FreeDecoder(G722DecInst* G722dec_inst);
+int WebRtcG722_FreeDecoder(G722DecInst *G722dec_inst);
+
 
 /****************************************************************************
  * WebRtcG722_Decode(...)
@@ -152,11 +159,11 @@ int WebRtcG722_FreeDecoder(G722DecInst* G722dec_inst);
  * Return value             : Samples in decoded vector
  */
 
-size_t WebRtcG722_Decode(G722DecInst* G722dec_inst,
+size_t WebRtcG722_Decode(G722DecInst *G722dec_inst,
                          const uint8_t* encoded,
                          size_t len,
-                         int16_t* decoded,
-                         int16_t* speechType);
+                         int16_t *decoded,
+                         int16_t *speechType);
 
 /****************************************************************************
  * WebRtcG722_Version(...)
@@ -164,10 +171,12 @@ size_t WebRtcG722_Decode(G722DecInst* G722dec_inst,
  * Get a string with the current version of the codec
  */
 
-int16_t WebRtcG722_Version(char* versionStr, short len);
+int16_t WebRtcG722_Version(char *versionStr, short len);
+
 
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif /* MODULES_AUDIO_CODING_CODECS_G722_G722_INTERFACE_H_ */

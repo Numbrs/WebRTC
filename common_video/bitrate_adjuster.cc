@@ -13,8 +13,9 @@
 #include <algorithm>
 #include <cmath>
 
+#include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/time_utils.h"
+#include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 
@@ -29,9 +30,11 @@ const float BitrateAdjuster::kBitrateTolerancePct = .1f;
 
 const float BitrateAdjuster::kBytesPerMsToBitsPerSecond = 8 * 1000;
 
-BitrateAdjuster::BitrateAdjuster(float min_adjusted_bitrate_pct,
+BitrateAdjuster::BitrateAdjuster(Clock* clock,
+                                 float min_adjusted_bitrate_pct,
                                  float max_adjusted_bitrate_pct)
-    : min_adjusted_bitrate_pct_(min_adjusted_bitrate_pct),
+    : clock_(clock),
+      min_adjusted_bitrate_pct_(min_adjusted_bitrate_pct),
       max_adjusted_bitrate_pct_(max_adjusted_bitrate_pct),
       bitrate_tracker_(1.5 * kBitrateUpdateIntervalMs,
                        kBytesPerMsToBitsPerSecond) {
@@ -67,14 +70,14 @@ uint32_t BitrateAdjuster::GetAdjustedBitrateBps() const {
   return adjusted_bitrate_bps_;
 }
 
-absl::optional<uint32_t> BitrateAdjuster::GetEstimatedBitrateBps() {
+rtc::Optional<uint32_t> BitrateAdjuster::GetEstimatedBitrateBps() {
   rtc::CritScope cs(&crit_);
-  return bitrate_tracker_.Rate(rtc::TimeMillis());
+  return bitrate_tracker_.Rate(clock_->TimeInMilliseconds());
 }
 
 void BitrateAdjuster::Update(size_t frame_size) {
   rtc::CritScope cs(&crit_);
-  uint32_t current_time_ms = rtc::TimeMillis();
+  uint32_t current_time_ms = clock_->TimeInMilliseconds();
   bitrate_tracker_.Update(frame_size, current_time_ms);
   UpdateBitrate(current_time_ms);
 }
@@ -139,15 +142,15 @@ void BitrateAdjuster::UpdateBitrate(uint32_t current_time_ms) {
     // Set the adjustment if it's not already set.
     float last_adjusted_bitrate_bps = adjusted_bitrate_bps_;
     if (adjusted_bitrate_bps != last_adjusted_bitrate_bps) {
-      RTC_LOG(LS_VERBOSE) << "Adjusting encoder bitrate:"
-                          << "\n  target_bitrate:"
-                          << static_cast<uint32_t>(target_bitrate_bps)
-                          << "\n  estimated_bitrate:"
-                          << static_cast<uint32_t>(estimated_bitrate_bps)
-                          << "\n  last_adjusted_bitrate:"
-                          << static_cast<uint32_t>(last_adjusted_bitrate_bps)
-                          << "\n  adjusted_bitrate:"
-                          << static_cast<uint32_t>(adjusted_bitrate_bps);
+      LOG(LS_VERBOSE) << "Adjusting encoder bitrate:"
+                      << "\n  target_bitrate:"
+                      << static_cast<uint32_t>(target_bitrate_bps)
+                      << "\n  estimated_bitrate:"
+                      << static_cast<uint32_t>(estimated_bitrate_bps)
+                      << "\n  last_adjusted_bitrate:"
+                      << static_cast<uint32_t>(last_adjusted_bitrate_bps)
+                      << "\n  adjusted_bitrate:"
+                      << static_cast<uint32_t>(adjusted_bitrate_bps);
       adjusted_bitrate_bps_ = adjusted_bitrate_bps;
     }
   }

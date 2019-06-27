@@ -15,19 +15,18 @@
 
 #include <utility>
 
-#include "api/scoped_refptr.h"
 #include "modules/desktop_capture/desktop_capture_options.h"
 #include "modules/desktop_capture/desktop_capturer.h"
 #include "modules/desktop_capture/desktop_frame.h"
+#include "modules/desktop_capture/window_finder_mac.h"
 #include "modules/desktop_capture/mac/desktop_configuration.h"
 #include "modules/desktop_capture/mac/desktop_configuration_monitor.h"
 #include "modules/desktop_capture/mac/full_screen_chrome_window_detector.h"
 #include "modules/desktop_capture/mac/window_list_utils.h"
-#include "modules/desktop_capture/window_finder_mac.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/mac_utils.h"
-#include "rtc_base/trace_event.h"
+#include "rtc_base/macutils.h"
+#include "rtc_base/scoped_ref_ptr.h"
 
 namespace webrtc {
 
@@ -84,8 +83,7 @@ WindowCapturerMac::WindowCapturerMac(
     rtc::scoped_refptr<DesktopConfigurationMonitor> configuration_monitor)
     : full_screen_chrome_window_detector_(
           std::move(full_screen_chrome_window_detector)),
-      configuration_monitor_(std::move(configuration_monitor)),
-      window_finder_(configuration_monitor_) {}
+      configuration_monitor_(std::move(configuration_monitor)) {}
 
 WindowCapturerMac::~WindowCapturerMac() {}
 
@@ -113,7 +111,7 @@ bool WindowCapturerMac::FocusOnSelectedSource() {
       CGWindowListCreateDescriptionFromArray(window_id_array);
   if (!window_array || 0 == CFArrayGetCount(window_array)) {
     // Could not find the window. It might have been closed.
-    RTC_LOG(LS_INFO) << "Window not found";
+    LOG(LS_INFO) << "Window not found";
     CFRelease(window_id_array);
     return false;
   }
@@ -140,7 +138,9 @@ bool WindowCapturerMac::FocusOnSelectedSource() {
 bool WindowCapturerMac::IsOccluded(const DesktopVector& pos) {
   DesktopVector sys_pos = pos;
   if (configuration_monitor_) {
+    configuration_monitor_->Lock();
     auto configuration = configuration_monitor_->desktop_configuration();
+    configuration_monitor_->Unlock();
     sys_pos = pos.add(configuration.bounds.top_left());
   }
   return window_finder_.GetWindowUnderPoint(sys_pos) != window_id_;
@@ -154,10 +154,7 @@ void WindowCapturerMac::Start(Callback* callback) {
 }
 
 void WindowCapturerMac::CaptureFrame() {
-  TRACE_EVENT0("webrtc", "WindowCapturerMac::CaptureFrame");
-
   if (!IsWindowValid(window_id_)) {
-    RTC_LOG(LS_ERROR) << "The window is not valid any longer.";
     callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
     return;
   }
@@ -176,14 +173,13 @@ void WindowCapturerMac::CaptureFrame() {
       on_screen_window, kCGWindowImageBoundsIgnoreFraming);
 
   if (!window_image) {
-    RTC_LOG(LS_WARNING) << "Temporarily failed to capture window.";
     callback_->OnCaptureResult(Result::ERROR_TEMPORARY, nullptr);
     return;
   }
 
   int bits_per_pixel = CGImageGetBitsPerPixel(window_image);
   if (bits_per_pixel != 32) {
-    RTC_LOG(LS_ERROR) << "Unsupported window image depth: " << bits_per_pixel;
+    LOG(LS_ERROR) << "Unsupported window image depth: " << bits_per_pixel;
     CFRelease(window_image);
     callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
     return;
@@ -208,10 +204,14 @@ void WindowCapturerMac::CaptureFrame() {
 
   frame->mutable_updated_region()->SetRect(
       DesktopRect::MakeSize(frame->size()));
-  frame->set_top_left(GetWindowBounds(on_screen_window).top_left());
-
-  float scale_factor = GetWindowScaleFactor(window_id_, frame->size());
-  frame->set_dpi(DesktopVector(kStandardDPI * scale_factor, kStandardDPI * scale_factor));
+  DesktopVector top_left = GetWindowBounds(on_screen_window).top_left();
+  if (configuration_monitor_) {
+    configuration_monitor_->Lock();
+    auto configuration = configuration_monitor_->desktop_configuration();
+    configuration_monitor_->Unlock();
+    top_left = top_left.subtract(configuration.bounds.top_left());
+  }
+  frame->set_top_left(top_left);
 
   callback_->OnCaptureResult(Result::SUCCESS, std::move(frame));
 

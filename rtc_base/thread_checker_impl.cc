@@ -12,11 +12,15 @@
 
 #include "rtc_base/thread_checker_impl.h"
 
+#include "rtc_base/platform_thread.h"
+
 namespace rtc {
 
-ThreadCheckerImpl::ThreadCheckerImpl() : valid_thread_(CurrentThreadRef()) {}
+ThreadCheckerImpl::ThreadCheckerImpl() : valid_thread_(CurrentThreadRef()) {
+}
 
-ThreadCheckerImpl::~ThreadCheckerImpl() {}
+ThreadCheckerImpl::~ThreadCheckerImpl() {
+}
 
 bool ThreadCheckerImpl::CalledOnValidThread() const {
   const PlatformThreadRef current_thread = CurrentThreadRef();

@@ -14,6 +14,7 @@
 #include <ApplicationServices/ApplicationServices.h>
 #include <vector>
 
+#include "typedefs.h"  // NOLINT(build/include)
 #include "modules/desktop_capture/desktop_geometry.h"
 
 namespace webrtc {
@@ -39,9 +40,6 @@ struct MacDisplayConfiguration {
 
   // Scale factor from DIPs to physical pixels.
   float dip_to_pixel_scale = 1.0f;
-
-  // Display type, built-in or external.
-  bool is_builtin;
 };
 
 typedef std::vector<MacDisplayConfiguration> MacDisplayConfigurations;
@@ -69,9 +67,7 @@ struct MacDesktopConfiguration {
   // Returns true if the given desktop configuration equals this one.
   bool Equals(const MacDesktopConfiguration& other);
 
-  // If |id| corresponds to the built-in display, return its configuration,
-  // otherwise return the configuration for the display with the specified id,
-  // or nullptr if no such display exists.
+  // Returns the pointer to the display configuration with the specified id.
   const MacDisplayConfiguration* FindDisplayConfigurationById(
       CGDirectDisplayID id);
 

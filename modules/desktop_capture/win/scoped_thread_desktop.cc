@@ -15,7 +15,8 @@
 namespace webrtc {
 
 ScopedThreadDesktop::ScopedThreadDesktop()
-    : initial_(Desktop::GetThreadDesktop()) {}
+    : initial_(Desktop::GetThreadDesktop()) {
+}
 
 ScopedThreadDesktop::~ScopedThreadDesktop() {
   Revert();

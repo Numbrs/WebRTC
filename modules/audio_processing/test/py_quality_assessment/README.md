@@ -10,8 +10,7 @@ reference one used for evaluation.
 ## Dependencies
  - OS: Linux
  - Python 2.7
- - Python libraries: enum34, numpy, scipy, pydub (0.17.0+), pandas (0.20.1+),
-                     pyquery (1.2+), jsmin (2.2+), csscompressor (0.9.4)
+ - Python libraries: enum34, numpy, scipy, pydub (0.17.0+), pandas (0.20.1+)
  - It is recommended that a dedicated Python environment is used
    - install `virtualenv`
    - `$ sudo apt-get install python-virtualenv`
@@ -20,8 +19,7 @@ reference one used for evaluation.
    - activate the new Python environment
    - `$ source ~/my_env/bin/activate`
    - add dependcies via `pip`
-   - `(my_env)$ pip install enum34 numpy pydub scipy pandas pyquery jsmin \`
-                `csscompressor`
+   - `(my_env)$ pip install numpy pydub scipy pandas`
  - PolqaOem64 (see http://www.polqa.info/)
     - Tested with POLQA Library v1.180 / P863 v2.400
  - Aachen Impulse Response (AIR) Database
@@ -36,7 +34,7 @@ reference one used for evaluation.
 ## Unit tests
  - Compile WebRTC
  - Go to `out/Default/py_quality_assessment`
- - Run `python -m unittest discover -p "*_unittest.py"`
+ - Run `python -m unittest -p "*_unittest.py" discover`
 
 ## First time setup
  - Deploy PolqaOem64 and set the `POLQA_PATH` environment variable
@@ -95,7 +93,7 @@ helps with that, producing plots similar to [this
 one](https://matplotlib.org/mpl_examples/pylab_examples/boxplot_demo_06.png).
 
 Suppose some scores come from running the APM simulator `audioproc_f` with
-or without the level controller: `--lc=1` or `--lc=0`. Then two boxplots
+or without the intelligibility enhancer: `--ie=1` or `--ie=0`. Then two boxplots
 side by side can be generated with
 
 ```
@@ -103,7 +101,7 @@ $ ./apm_quality_assessment_boxplot.py \
       -o /path/to/output
       -v <score_name>
       -n /path/to/dir/with/apm_configs
-      -z lc
+      -z ie
 ```
 
 ## Troubleshooting

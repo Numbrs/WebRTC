@@ -11,8 +11,8 @@
 #ifndef MODULES_DESKTOP_CAPTURE_WIN_SCREEN_CAPTURE_UTILS_H_
 #define MODULES_DESKTOP_CAPTURE_WIN_SCREEN_CAPTURE_UTILS_H_
 
-#include <string>
 #include <vector>
+#include <string>
 
 #include "modules/desktop_capture/desktop_capturer.h"
 

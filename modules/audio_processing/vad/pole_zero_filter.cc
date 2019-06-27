@@ -10,6 +10,7 @@
 
 #include "modules/audio_processing/vad/pole_zero_filter.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <algorithm>
 
@@ -52,8 +53,7 @@ PoleZeroFilter::PoleZeroFilter(const float* numerator_coefficients,
 }
 
 template <typename T>
-static float FilterArPast(const T* past,
-                          size_t order,
+static float FilterArPast(const T* past, size_t order,
                           const float* coefficients) {
   float sum = 0.0f;
   size_t past_index = order - 1;

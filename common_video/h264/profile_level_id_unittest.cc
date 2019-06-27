@@ -10,12 +10,6 @@
 
 #include "common_video/h264/profile_level_id.h"
 
-#include <map>
-#include <string>
-
-#include "absl/types/optional.h"
-#include "common_types.h"  // NOLINT(build/include)
-#include "media/base/h264_profile_level_id.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -131,7 +125,7 @@ TEST(H264ProfileLevelId, TestToStringInvalid) {
 }
 
 TEST(H264ProfileLevelId, TestParseSdpProfileLevelIdEmpty) {
-  const absl::optional<ProfileLevelId> profile_level_id =
+  const rtc::Optional<ProfileLevelId> profile_level_id =
       ParseSdpProfileLevelId(CodecParameterMap());
   EXPECT_TRUE(profile_level_id);
   EXPECT_EQ(kProfileConstrainedBaseline, profile_level_id->profile);
@@ -141,7 +135,7 @@ TEST(H264ProfileLevelId, TestParseSdpProfileLevelIdEmpty) {
 TEST(H264ProfileLevelId, TestParseSdpProfileLevelIdConstrainedHigh) {
   CodecParameterMap params;
   params["profile-level-id"] = "640c2a";
-  const absl::optional<ProfileLevelId> profile_level_id =
+  const rtc::Optional<ProfileLevelId> profile_level_id =
       ParseSdpProfileLevelId(params);
   EXPECT_TRUE(profile_level_id);
   EXPECT_EQ(kProfileConstrainedHigh, profile_level_id->profile);

@@ -14,6 +14,7 @@
 
 #include "modules/audio_processing/aec/aec_resampler.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 

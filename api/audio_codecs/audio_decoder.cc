@@ -33,14 +33,14 @@ class OldStyleEncodedFrame final : public AudioDecoder::EncodedAudioFrame {
     return ret < 0 ? 0 : static_cast<size_t>(ret);
   }
 
-  absl::optional<DecodeResult> Decode(
+  rtc::Optional<DecodeResult> Decode(
       rtc::ArrayView<int16_t> decoded) const override {
     auto speech_type = AudioDecoder::kSpeech;
     const int ret = decoder_->Decode(
         payload_.data(), payload_.size(), decoder_->SampleRateHz(),
         decoded.size() * sizeof(int16_t), decoded.data(), &speech_type);
-    return ret < 0 ? absl::nullopt
-                   : absl::optional<DecodeResult>(
+    return ret < 0 ? rtc::Optional<DecodeResult>()
+                   : rtc::Optional<DecodeResult>(
                          {static_cast<size_t>(ret), speech_type});
   }
 
@@ -50,10 +50,6 @@ class OldStyleEncodedFrame final : public AudioDecoder::EncodedAudioFrame {
 };
 
 }  // namespace
-
-bool AudioDecoder::EncodedAudioFrame::IsDtxPacket() const {
-  return false;
-}
 
 AudioDecoder::ParseResult::ParseResult() = default;
 AudioDecoder::ParseResult::ParseResult(ParseResult&& b) = default;
@@ -128,12 +124,6 @@ bool AudioDecoder::HasDecodePlc() const {
 
 size_t AudioDecoder::DecodePlc(size_t num_frames, int16_t* decoded) {
   return 0;
-}
-
-// TODO(bugs.webrtc.org/9676): Remove default impementation.
-void AudioDecoder::GeneratePlc(size_t /*requested_samples_per_channel*/,
-                               rtc::BufferT<int16_t>* /*concealment_audio*/) {
-  return;
 }
 
 int AudioDecoder::IncomingPacket(const uint8_t* payload,

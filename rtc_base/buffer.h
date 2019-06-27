@@ -11,7 +11,6 @@
 #ifndef RTC_BASE_BUFFER_H_
 #define RTC_BASE_BUFFER_H_
 
-#include <stdint.h>
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -21,7 +20,6 @@
 #include "api/array_view.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/type_traits.h"
-#include "rtc_base/zero_memory.h"
 
 namespace rtc {
 
@@ -46,10 +44,7 @@ struct BufferCompat {
 
 // Basic buffer class, can be grown and shrunk dynamically.
 // Unlike std::string/vector, does not initialize data when increasing size.
-// If "ZeroOnFree" is true, any memory is explicitly cleared before releasing.
-// The type alias "ZeroOnFreeBuffer" below should be used instead of setting
-// "ZeroOnFree" in the template manually to "true".
-template <typename T, bool ZeroOnFree = false>
+template <typename T>
 class BufferT {
   // We want T's destructor and default constructor to be trivial, i.e. perform
   // no action, so that we don't have to touch the memory we allocate and
@@ -88,7 +83,7 @@ class BufferT {
   BufferT(size_t size, size_t capacity)
       : size_(size),
         capacity_(std::max(size, capacity)),
-        data_(capacity_ > 0 ? new T[capacity_] : nullptr) {
+        data_(new T[capacity_]) {
     RTC_DCHECK(IsConsistent());
   }
 
@@ -112,8 +107,6 @@ class BufferT {
             typename std::enable_if<
                 internal::BufferCompat<T, U>::value>::type* = nullptr>
   BufferT(U (&array)[N]) : BufferT(array, N) {}
-
-  ~BufferT() { MaybeZeroCompleteBuffer(); }
 
   // Get a pointer to the data. Just .data() will give you a (const) T*, but if
   // T is a byte-sized integer, you may also use .data<U>() for any other
@@ -150,13 +143,11 @@ class BufferT {
   }
 
   BufferT& operator=(BufferT&& buf) {
+    RTC_DCHECK(IsConsistent());
     RTC_DCHECK(buf.IsConsistent());
-    MaybeZeroCompleteBuffer();
     size_ = buf.size_;
     capacity_ = buf.capacity_;
-    using std::swap;
-    swap(data_, buf.data_);
-    buf.data_.reset();
+    data_ = std::move(buf.data_);
     buf.OnMovedFrom();
     return *this;
   }
@@ -204,12 +195,8 @@ class BufferT {
                 internal::BufferCompat<T, U>::value>::type* = nullptr>
   void SetData(const U* data, size_t size) {
     RTC_DCHECK(IsConsistent());
-    const size_t old_size = size_;
     size_ = 0;
     AppendData(data, size);
-    if (ZeroOnFree && size_ < old_size) {
-      ZeroTrailingData(old_size - size_);
-    }
   }
 
   template <typename U,
@@ -227,28 +214,21 @@ class BufferT {
     SetData(w.data(), w.size());
   }
 
-  // Replaces the data in the buffer with at most |max_elements| of data, using
+  // Replace the data in the buffer with at most |max_elements| of data, using
   // the function |setter|, which should have the following signature:
-  //
   //   size_t setter(ArrayView<U> view)
-  //
-  // |setter| is given an appropriately typed ArrayView of length exactly
-  // |max_elements| that describes the area where it should write the data; it
-  // should return the number of elements actually written. (If it doesn't fill
-  // the whole ArrayView, it should leave the unused space at the end.)
+  // |setter| is given an appropriately typed ArrayView of the area in which to
+  // write the data (i.e. starting at the beginning of the buffer) and should
+  // return the number of elements actually written. This number must be <=
+  // |max_elements|.
   template <typename U = T,
             typename F,
             typename std::enable_if<
                 internal::BufferCompat<T, U>::value>::type* = nullptr>
   size_t SetData(size_t max_elements, F&& setter) {
     RTC_DCHECK(IsConsistent());
-    const size_t old_size = size_;
     size_ = 0;
-    const size_t written = AppendData<U>(max_elements, std::forward<F>(setter));
-    if (ZeroOnFree && size_ < old_size) {
-      ZeroTrailingData(old_size - size_);
-    }
-    return written;
+    return AppendData<U>(max_elements, std::forward<F>(setter));
   }
 
   // The AppendData functions add data to the end of the buffer. They accept
@@ -288,15 +268,13 @@ class BufferT {
     AppendData(&item, 1);
   }
 
-  // Appends at most |max_elements| to the end of the buffer, using the function
+  // Append at most |max_elements| to the end of the buffer, using the function
   // |setter|, which should have the following signature:
-  //
   //   size_t setter(ArrayView<U> view)
-  //
-  // |setter| is given an appropriately typed ArrayView of length exactly
-  // |max_elements| that describes the area where it should write the data; it
-  // should return the number of elements actually written. (If it doesn't fill
-  // the whole ArrayView, it should leave the unused space at the end.)
+  // |setter| is given an appropriately typed ArrayView of the area in which to
+  // write the data (i.e. starting at the former end of the buffer) and should
+  // return the number of elements actually written. This number must be <=
+  // |max_elements|.
   template <typename U = T,
             typename F,
             typename std::enable_if<
@@ -319,12 +297,8 @@ class BufferT {
   // the existing contents will be kept and the new space will be
   // uninitialized.
   void SetSize(size_t size) {
-    const size_t old_size = size_;
     EnsureCapacityWithHeadroom(size, true);
     size_ = size;
-    if (ZeroOnFree && size_ < old_size) {
-      ZeroTrailingData(old_size - size_);
-    }
   }
 
   // Ensure that the buffer size can be increased to at least capacity without
@@ -339,7 +313,6 @@ class BufferT {
   // Resets the buffer to zero size without altering capacity. Works even if the
   // buffer has been moved from.
   void Clear() {
-    MaybeZeroCompleteBuffer();
     size_ = 0;
     RTC_DCHECK(IsConsistent());
   }
@@ -369,30 +342,12 @@ class BufferT {
 
     std::unique_ptr<T[]> new_data(new T[new_capacity]);
     std::memcpy(new_data.get(), data_.get(), size_ * sizeof(T));
-    MaybeZeroCompleteBuffer();
     data_ = std::move(new_data);
     capacity_ = new_capacity;
     RTC_DCHECK(IsConsistent());
   }
 
-  // Zero the complete buffer if template argument "ZeroOnFree" is true.
-  void MaybeZeroCompleteBuffer() {
-    if (ZeroOnFree && capacity_ > 0) {
-      // It would be sufficient to only zero "size_" elements, as all other
-      // methods already ensure that the unused capacity contains no sensitive
-      // data---but better safe than sorry.
-      ExplicitZeroMemory(data_.get(), capacity_ * sizeof(T));
-    }
-  }
-
-  // Zero the first "count" elements of unused capacity.
-  void ZeroTrailingData(size_t count) {
-    RTC_DCHECK(IsConsistent());
-    RTC_DCHECK_LE(count, capacity_ - size_);
-    ExplicitZeroMemory(data_.get() + size_, count * sizeof(T));
-  }
-
-  // Precondition for all methods except Clear, operator= and the destructor.
+  // Precondition for all methods except Clear and the destructor.
   // Postcondition for all methods except move construction and move
   // assignment, which leave the moved-from object in a possibly inconsistent
   // state.
@@ -403,15 +358,14 @@ class BufferT {
   // Called when *this has been moved from. Conceptually it's a no-op, but we
   // can mutate the state slightly to help subsequent sanity checks catch bugs.
   void OnMovedFrom() {
-    RTC_DCHECK(!data_);  // Our heap block should have been stolen.
 #if RTC_DCHECK_IS_ON
-    // Ensure that *this is always inconsistent, to provoke bugs.
-    size_ = 1;
-    capacity_ = 0;
-#else
     // Make *this consistent and empty. Shouldn't be necessary, but better safe
     // than sorry.
     size_ = 0;
+    capacity_ = 0;
+#else
+    // Ensure that *this is always inconsistent, to provoke bugs.
+    size_ = 1;
     capacity_ = 0;
 #endif
   }
@@ -423,10 +377,6 @@ class BufferT {
 
 // By far the most common sort of buffer.
 using Buffer = BufferT<uint8_t>;
-
-// A buffer that zeros memory before releasing it.
-template <typename T>
-using ZeroOnFreeBuffer = BufferT<T, true>;
 
 }  // namespace rtc
 

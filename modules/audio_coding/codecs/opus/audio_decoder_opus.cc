@@ -10,11 +10,8 @@
 
 #include "modules/audio_coding/codecs/opus/audio_decoder_opus.h"
 
-#include <memory>
 #include <utility>
 
-#include "absl/types/optional.h"
-#include "api/array_view.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -39,9 +36,7 @@ class OpusFrame : public AudioDecoder::EncodedAudioFrame {
     return (ret < 0) ? 0 : static_cast<size_t>(ret);
   }
 
-  bool IsDtxPacket() const override { return payload_.size() <= 2; }
-
-  absl::optional<DecodeResult> Decode(
+  rtc::Optional<DecodeResult> Decode(
       rtc::ArrayView<int16_t> decoded) const override {
     AudioDecoder::SpeechType speech_type = AudioDecoder::kSpeech;
     int ret;
@@ -56,9 +51,9 @@ class OpusFrame : public AudioDecoder::EncodedAudioFrame {
     }
 
     if (ret < 0)
-      return absl::nullopt;
+      return rtc::Optional<DecodeResult>();
 
-    return DecodeResult{static_cast<size_t>(ret), speech_type};
+    return rtc::Optional<DecodeResult>({static_cast<size_t>(ret), speech_type});
   }
 
  private:
@@ -71,10 +66,8 @@ class OpusFrame : public AudioDecoder::EncodedAudioFrame {
 
 AudioDecoderOpusImpl::AudioDecoderOpusImpl(size_t num_channels)
     : channels_(num_channels) {
-  RTC_DCHECK(num_channels == 1 || num_channels == 2 || num_channels == 4 ||
-             num_channels == 6 || num_channels == 8);
-  const int error = WebRtcOpus_DecoderCreate(&dec_state_, channels_);
-  RTC_DCHECK(error == 0);
+  RTC_DCHECK(num_channels == 1 || num_channels == 2);
+  WebRtcOpus_DecoderCreate(&dec_state_, channels_);
   WebRtcOpus_DecoderInit(dec_state_);
 }
 

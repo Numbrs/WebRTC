@@ -12,6 +12,8 @@
 
 #include <string>
 
+#include "rtc_base/basictypes.h"
+
 namespace webrtc {
 
 // With newer versions of SDP, SSRC is often not explicitly signaled and must

@@ -9,7 +9,7 @@
  */
 #include "modules/video_coding/utility/vp9_uncompressed_header_parser.h"
 
-#include "rtc_base/bit_buffer.h"
+#include "rtc_base/bitbuffer.h"
 #include "rtc_base/logging.h"
 
 namespace webrtc {
@@ -35,7 +35,7 @@ bool Vp9ReadProfile(rtc::BitBuffer* br, uint8_t* profile) {
     uint32_t reserved_bit;
     RETURN_FALSE_IF_ERROR(br->ReadBits(&reserved_bit, 1));
     if (reserved_bit) {
-      RTC_LOG(LS_WARNING) << "Failed to get QP. Unsupported bitstream profile.";
+      LOG(LS_WARNING) << "Failed to get QP. Unsupported bitstream profile.";
       return false;
     }
   }
@@ -46,7 +46,7 @@ bool Vp9ReadSyncCode(rtc::BitBuffer* br) {
   uint32_t sync_code;
   RETURN_FALSE_IF_ERROR(br->ReadBits(&sync_code, 24));
   if (sync_code != 0x498342) {
-    RTC_LOG(LS_WARNING) << "Failed to get QP. Invalid sync code.";
+    LOG(LS_WARNING) << "Failed to get QP. Invalid sync code.";
     return false;
   }
   return true;
@@ -71,7 +71,7 @@ bool Vp9ReadColorConfig(rtc::BitBuffer* br, uint8_t profile) {
       uint32_t reserved_bit;
       RETURN_FALSE_IF_ERROR(br->ReadBits(&reserved_bit, 1));
       if (reserved_bit) {
-        RTC_LOG(LS_WARNING) << "Failed to get QP. Reserved bit set.";
+        LOG(LS_WARNING) << "Failed to get QP. Reserved bit set.";
         return false;
       }
     }
@@ -80,12 +80,12 @@ bool Vp9ReadColorConfig(rtc::BitBuffer* br, uint8_t profile) {
       uint32_t reserved_bit;
       RETURN_FALSE_IF_ERROR(br->ReadBits(&reserved_bit, 1));
       if (reserved_bit) {
-        RTC_LOG(LS_WARNING) << "Failed to get QP. Reserved bit set.";
+        LOG(LS_WARNING) << "Failed to get QP. Reserved bit set.";
         return false;
       }
     } else {
-      RTC_LOG(LS_WARNING) << "Failed to get QP. 4:4:4 color not supported in "
-                             "profile 0 or 2.";
+      LOG(LS_WARNING) << "Failed to get QP. 4:4:4 color not supported in "
+                         "profile 0 or 2.";
       return false;
     }
   }
@@ -173,7 +173,7 @@ bool GetQp(const uint8_t* buf, size_t length, int* qp) {
   uint32_t frame_marker;
   RETURN_FALSE_IF_ERROR(br.ReadBits(&frame_marker, 2));
   if (frame_marker != 0x2) {
-    RTC_LOG(LS_WARNING) << "Failed to get QP. Frame marker should be 2.";
+    LOG(LS_WARNING) << "Failed to get QP. Frame marker should be 2.";
     return false;
   }
 

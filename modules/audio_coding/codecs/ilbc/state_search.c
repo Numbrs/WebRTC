@@ -16,9 +16,9 @@
 
 ******************************************************************/
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
-#include "modules/audio_coding/codecs/ilbc/constants.h"
-#include "modules/audio_coding/codecs/ilbc/abs_quant.h"
+#include "defines.h"
+#include "constants.h"
+#include "abs_quant.h"
 
 /*----------------------------------------------------------------*
  *  encoding of start state

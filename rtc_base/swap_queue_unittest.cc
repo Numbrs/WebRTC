@@ -10,7 +10,6 @@
 
 #include "rtc_base/swap_queue.h"
 
-#include <cstdint>
 #include <vector>
 
 #include "test/gtest.h"

@@ -44,10 +44,8 @@ class ChannelMember {
 
   void OnClosing(DataSocket* ds);
 
-  void QueueResponse(const std::string& status,
-                     const std::string& content_type,
-                     const std::string& extra_headers,
-                     const std::string& data);
+  void QueueResponse(const std::string& status, const std::string& content_type,
+                     const std::string& extra_headers, const std::string& data);
 
   void SetWaitingSocket(DataSocket* ds);
 
@@ -70,9 +68,12 @@ class PeerChannel {
  public:
   typedef std::vector<ChannelMember*> Members;
 
-  PeerChannel() {}
+  PeerChannel() {
+  }
 
-  ~PeerChannel() { DeleteAll(); }
+  ~PeerChannel() {
+    DeleteAll();
+  }
 
   const Members& members() const { return members_; }
 

@@ -8,4 +8,18 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#import "api/video_codec/RTCVideoEncoderVP8.h"
+#import <Foundation/Foundation.h>
+
+#import <WebRTC/RTCMacros.h>
+#import <WebRTC/RTCVideoCodec.h>
+
+RTC_EXPORT
+@interface RTCVideoEncoderVP8 : NSObject
+
+/* This returns a VP8 encoder that can be returned from a RTCVideoEncoderFactory injected into
+ * RTCPeerConnectionFactory. Even though it implements the RTCVideoEncoder protocol, it can not be
+ * used independently from the RTCPeerConnectionFactory.
+ */
++ (id<RTCVideoEncoder>)vp8Encoder;
+
+@end

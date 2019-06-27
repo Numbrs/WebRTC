@@ -10,12 +10,12 @@
 
 #include "test/rtp_file_writer.h"
 
-#include <stdint.h>
 #include <stdio.h>
+
 #include <string>
 
 #include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 
 namespace webrtc {
 namespace test {
@@ -31,7 +31,7 @@ class RtpDumpWriter : public RtpFileWriter {
     RTC_CHECK(file_ != NULL);
     Init();
   }
-  ~RtpDumpWriter() override {
+  virtual ~RtpDumpWriter() {
     if (file_ != NULL) {
       fclose(file_);
       file_ = NULL;

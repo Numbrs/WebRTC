@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "api/audio_codecs/audio_encoder.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 
 namespace webrtc {
 
@@ -69,6 +69,8 @@ class AudioEncoderPcm : public AudioEncoder {
   uint32_t first_timestamp_in_buffer_;
 };
 
+struct CodecInst;
+
 class AudioEncoderPcmA final : public AudioEncoderPcm {
  public:
   struct Config : public AudioEncoderPcm::Config {
@@ -77,6 +79,7 @@ class AudioEncoderPcmA final : public AudioEncoderPcm {
 
   explicit AudioEncoderPcmA(const Config& config)
       : AudioEncoderPcm(config, kSampleRateHz) {}
+  explicit AudioEncoderPcmA(const CodecInst& codec_inst);
 
  protected:
   size_t EncodeCall(const int16_t* audio,
@@ -100,6 +103,7 @@ class AudioEncoderPcmU final : public AudioEncoderPcm {
 
   explicit AudioEncoderPcmU(const Config& config)
       : AudioEncoderPcm(config, kSampleRateHz) {}
+  explicit AudioEncoderPcmU(const CodecInst& codec_inst);
 
  protected:
   size_t EncodeCall(const int16_t* audio,

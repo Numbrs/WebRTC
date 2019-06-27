@@ -15,7 +15,8 @@
 #include <string>
 
 #include "modules/audio_coding/neteq/include/neteq.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -83,19 +84,10 @@ class StatisticsCalculator {
   // Reports that |num_samples| samples were decoded from secondary packets.
   void SecondaryDecodedSamples(int num_samples);
 
-  // Reports that the packet buffer was flushed.
-  void FlushedPacketBuffer();
-
-  // Reports that the jitter buffer received a packet.
-  void ReceivedPacket();
-
-  // Reports that a received packet was delayed by |delay_ms| milliseconds.
-  virtual void RelativePacketArrivalDelay(size_t delay_ms);
-
-  // Logs a delayed packet outage event of |num_samples| expanded at a sample
-  // rate of |fs_hz|. A delayed packet outage event is defined as an expand
-  // period caused not by an actual packet loss, but by a delayed packet.
-  virtual void LogDelayedPacketOutageEvent(int num_samples, int fs_hz);
+  // Logs a delayed packet outage event of |outage_duration_ms|. A delayed
+  // packet outage event is defined as an expand period caused not by an actual
+  // packet loss, but by a delayed packet.
+  virtual void LogDelayedPacketOutageEvent(int outage_duration_ms);
 
   // Returns the current network statistics in |stats|. The current sample rate
   // is |fs_hz|, the total number of samples in packet buffer and sync buffer
@@ -106,7 +98,7 @@ class StatisticsCalculator {
   void GetNetworkStatistics(int fs_hz,
                             size_t num_samples_in_buffers,
                             size_t samples_per_packet,
-                            NetEqNetworkStatistics* stats);
+                            NetEqNetworkStatistics *stats);
 
   // Populates |preferred_buffer_size_ms|, |jitter_peaks_found| and
   // |clockdrift_ppm| in |stats|. This is a convenience method, and does not
@@ -119,8 +111,6 @@ class StatisticsCalculator {
   // Returns a copy of this class's lifetime statistics. These statistics are
   // never reset.
   NetEqLifetimeStatistics GetLifetimeStatistics() const;
-
-  NetEqOperationsAndState GetOperationsAndState() const;
 
  private:
   static const int kMaxReportPeriod = 60;  // Seconds before auto-reset.
@@ -183,15 +173,13 @@ class StatisticsCalculator {
   // If the correction is negative, it is cached and will be subtracted against
   // future additions to the counter. This is meant to be called from
   // Expanded{Voice,Noise}Samples{Correction}.
-  void ConcealedSamplesCorrection(int num_samples, bool is_voice);
+  void ConcealedSamplesCorrection(int num_samples);
 
   // Calculates numerator / denominator, and returns the value in Q14.
   static uint16_t CalculateQ14Ratio(size_t numerator, uint32_t denominator);
 
   NetEqLifetimeStatistics lifetime_stats_;
-  NetEqOperationsAndState operations_and_state_;
   size_t concealed_samples_correction_ = 0;
-  size_t voice_concealed_samples_correction_ = 0;
   size_t preemptive_samples_;
   size_t accelerate_samples_;
   size_t added_zero_samples_;
@@ -205,7 +193,6 @@ class StatisticsCalculator {
   size_t discarded_secondary_packets_;
   PeriodicUmaCount delayed_packet_outage_counter_;
   PeriodicUmaAverage excess_buffer_delay_;
-  PeriodicUmaCount buffer_full_counter_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(StatisticsCalculator);
 };

@@ -11,14 +11,9 @@
 #ifndef MODULES_VIDEO_CODING_PACKET_H_
 #define MODULES_VIDEO_CODING_PACKET_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include "absl/types/optional.h"
-#include "common_types.h"  // NOLINT(build/include)
 #include "modules/include/module_common_types.h"
-#include "modules/rtp_rtcp/source/rtp_generic_frame_descriptor.h"
-#include "modules/rtp_rtcp/source/rtp_video_header.h"
+#include "modules/video_coding/jitter_buffer_common.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -29,18 +24,7 @@ class VCMPacket {
             const size_t size,
             const WebRtcRTPHeader& rtpHeader);
 
-  ~VCMPacket();
-
-  VideoCodecType codec() const { return video_header.codec; }
-  int width() const { return video_header.width; }
-  int height() const { return video_header.height; }
-
-  bool is_first_packet_in_frame() const {
-    return video_header.is_first_packet_in_frame;
-  }
-  bool is_last_packet_in_frame() const {
-    return video_header.is_last_packet_in_frame;
-  }
+  void Reset();
 
   uint8_t payloadType;
   uint32_t timestamp;
@@ -53,14 +37,20 @@ class VCMPacket {
   int timesNacked;
 
   FrameType frameType;
+  VideoCodecType codec;
 
+  bool is_first_packet_in_frame;
   VCMNaluCompleteness completeNALU;  // Default is kNaluIncomplete.
   bool insertStartCode;  // True if a start code should be inserted before this
                          // packet.
+  int width;
+  int height;
   RTPVideoHeader video_header;
-  absl::optional<RtpGenericFrameDescriptor> generic_descriptor;
 
   int64_t receive_time_ms;
+
+ protected:
+  void CopyCodecSpecifics(const RTPVideoHeader& videoHeader);
 };
 
 }  // namespace webrtc

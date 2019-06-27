@@ -9,13 +9,10 @@
  */
 #include "modules/audio_processing/aec3/echo_canceller3.h"
 
-#include <algorithm>
-#include <utility>
+#include <sstream>
 
-#include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
-#include "rtc_base/atomic_ops.h"
-#include "system_wrappers/include/field_trial.h"
+#include "rtc_base/atomicops.h"
 
 namespace webrtc {
 
@@ -30,18 +27,6 @@ bool DetectSaturation(rtc::ArrayView<const float> y) {
     }
   }
   return false;
-}
-
-// Method for adjusting config parameter dependencies..
-EchoCanceller3Config AdjustConfig(const EchoCanceller3Config& config) {
-  EchoCanceller3Config adjusted_cfg = config;
-
-  if (field_trial::IsEnabled("WebRTC-Aec3ShortHeadroomKillSwitch")) {
-    // Two blocks headroom.
-    adjusted_cfg.delay.delay_headroom_samples = kBlockSize * 2;
-  }
-
-  return adjusted_cfg;
 }
 
 void FillSubFrameView(AudioBuffer* frame,
@@ -199,12 +184,6 @@ EchoCanceller3::RenderWriter::~RenderWriter() = default;
 void EchoCanceller3::RenderWriter::Insert(AudioBuffer* input) {
   RTC_DCHECK_EQ(1, input->num_channels());
   RTC_DCHECK_EQ(frame_length_, input->num_frames_per_band());
-  RTC_DCHECK_EQ(num_bands_, input->num_bands());
-
-  // TODO(bugs.webrtc.org/8759) Temporary work-around.
-  if (num_bands_ != static_cast<int>(input->num_bands()))
-    return;
-
   data_dumper_->DumpWav("aec3_render_input", frame_length_,
                         &input->split_bands_f(0)[0][0],
                         LowestBandRate(sample_rate_hz_), 1);
@@ -221,22 +200,19 @@ void EchoCanceller3::RenderWriter::Insert(AudioBuffer* input) {
 
 int EchoCanceller3::instance_count_ = 0;
 
-EchoCanceller3::EchoCanceller3(const EchoCanceller3Config& config,
-                               int sample_rate_hz,
-                               bool use_highpass_filter)
-    : EchoCanceller3(
-          AdjustConfig(config),
-          sample_rate_hz,
-          use_highpass_filter,
-          std::unique_ptr<BlockProcessor>(
-              BlockProcessor::Create(AdjustConfig(config), sample_rate_hz))) {}
-EchoCanceller3::EchoCanceller3(const EchoCanceller3Config& config,
-                               int sample_rate_hz,
+EchoCanceller3::EchoCanceller3(
+    const AudioProcessing::Config::EchoCanceller3& config,
+    int sample_rate_hz,
+    bool use_highpass_filter)
+    : EchoCanceller3(sample_rate_hz,
+                     use_highpass_filter,
+                     std::unique_ptr<BlockProcessor>(
+                         BlockProcessor::Create(config, sample_rate_hz))) {}
+EchoCanceller3::EchoCanceller3(int sample_rate_hz,
                                bool use_highpass_filter,
                                std::unique_ptr<BlockProcessor> block_processor)
     : data_dumper_(
           new ApmDataDumper(rtc::AtomicOps::Increment(&instance_count_))),
-      config_(config),
       sample_rate_hz_(sample_rate_hz),
       num_bands_(NumBandsForRate(sample_rate_hz_)),
       frame_length_(rtc::CheckedDivExact(LowestBandRate(sample_rate_hz_), 100)),
@@ -244,7 +220,7 @@ EchoCanceller3::EchoCanceller3(const EchoCanceller3Config& config,
       capture_blocker_(num_bands_),
       render_blocker_(num_bands_),
       render_transfer_queue_(
-          kRenderTransferQueueSizeFrames,
+          kRenderTransferQueueSize,
           std::vector<std::vector<float>>(
               num_bands_,
               std::vector<float>(frame_length_, 0.f)),
@@ -253,10 +229,7 @@ EchoCanceller3::EchoCanceller3(const EchoCanceller3Config& config,
       render_queue_output_frame_(num_bands_,
                                  std::vector<float>(frame_length_, 0.f)),
       block_(num_bands_, std::vector<float>(kBlockSize, 0.f)),
-      sub_frame_view_(num_bands_),
-      block_delay_buffer_(num_bands_,
-                          frame_length_,
-                          config_.delay.fixed_capture_delay_samples) {
+      sub_frame_view_(num_bands_) {
   RTC_DCHECK(ValidFullBandRate(sample_rate_hz_));
 
   std::unique_ptr<CascadedBiQuadFilter> render_highpass_filter;
@@ -319,15 +292,6 @@ void EchoCanceller3::ProcessCapture(AudioBuffer* capture, bool level_change) {
   data_dumper_->DumpRaw("aec3_call_order",
                         static_cast<int>(EchoCanceller3ApiCall::kCapture));
 
-  // Report capture call in the metrics and periodically update API call
-  // metrics.
-  api_call_metrics_.ReportCaptureCall();
-
-  // Optionally delay the capture signal.
-  if (config_.delay.fixed_capture_delay_samples > 0) {
-    block_delay_buffer_.DelaySignal(capture);
-  }
-
   rtc::ArrayView<float> capture_lower_band =
       rtc::ArrayView<float>(&capture->split_bands_f(0)[0][0], frame_length_);
 
@@ -360,16 +324,17 @@ void EchoCanceller3::ProcessCapture(AudioBuffer* capture, bool level_change) {
                         LowestBandRate(sample_rate_hz_), 1);
 }
 
-EchoControl::Metrics EchoCanceller3::GetMetrics() const {
-  RTC_DCHECK_RUNS_SERIALIZED(&capture_race_checker_);
-  Metrics metrics;
-  block_processor_->GetMetrics(&metrics);
-  return metrics;
+std::string EchoCanceller3::ToString(
+    const AudioProcessing::Config::EchoCanceller3& config) {
+  std::stringstream ss;
+  ss << "{"
+     << "enabled: " << (config.enabled ? "true" : "false") << "}";
+  return ss.str();
 }
 
-void EchoCanceller3::SetAudioBufferDelay(size_t delay_ms) {
-  RTC_DCHECK_RUNS_SERIALIZED(&capture_race_checker_);
-  block_processor_->SetAudioBufferDelay(delay_ms);
+bool EchoCanceller3::Validate(
+    const AudioProcessing::Config::EchoCanceller3& config) {
+  return true;
 }
 
 void EchoCanceller3::EmptyRenderQueue() {
@@ -377,9 +342,6 @@ void EchoCanceller3::EmptyRenderQueue() {
   bool frame_to_buffer =
       render_transfer_queue_.Remove(&render_queue_output_frame_);
   while (frame_to_buffer) {
-    // Report render call in the metrics.
-    api_call_metrics_.ReportRenderCall();
-
     BufferRenderFrameContent(&render_queue_output_frame_, 0, &render_blocker_,
                              block_processor_.get(), &block_, &sub_frame_view_);
 
@@ -396,4 +358,5 @@ void EchoCanceller3::EmptyRenderQueue() {
         render_transfer_queue_.Remove(&render_queue_output_frame_);
   }
 }
+
 }  // namespace webrtc

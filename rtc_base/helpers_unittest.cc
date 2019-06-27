@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <string.h>
 #include <string>
 
 #include "rtc_base/buffer.h"
+#include "rtc_base/gunit.h"
 #include "rtc_base/helpers.h"
-#include "test/gtest.h"
+#include "rtc_base/ssladapter.h"
 
 namespace rtc {
 
@@ -81,12 +81,10 @@ TEST_F(RandomTest, TestCreateRandomForTest) {
   std::string random;
   EXPECT_TRUE(CreateRandomData(kRandomDataLength, &random));
   EXPECT_EQ(kRandomDataLength, random.size());
-  Buffer expected(
-      "\xbd\x52\x2a\x4b\x97\x93\x2f\x1c"
+  Buffer expected("\xbd\x52\x2a\x4b\x97\x93\x2f\x1c"
       "\xc4\x72\xab\xa2\x88\x68\x3e\xcc"
       "\xa3\x8d\xaf\x13\x3b\xbc\x83\xbb"
-      "\x16\xf1\xcf\x56\x0c\xf5\x4a\x8b",
-      kRandomDataLength);
+      "\x16\xf1\xcf\x56\x0c\xf5\x4a\x8b", kRandomDataLength);
   EXPECT_EQ(0, memcmp(expected.data(), random.data(), kRandomDataLength));
 
   // Reset and make sure we get the same output.

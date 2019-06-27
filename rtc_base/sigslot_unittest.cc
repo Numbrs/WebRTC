@@ -8,10 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "rtc_base/third_party/sigslot/sigslot.h"
-
-#include "rtc_base/sigslot_repeater.h"
-#include "test/gtest.h"
+#include "rtc_base/sigslot.h"
+#include "rtc_base/gunit.h"
+#include "rtc_base/sigslotrepeater.h"
 
 // This function, when passed a has_slots or signalx, will break the build if
 // its threading requirement is not single threaded
@@ -29,32 +28,33 @@ class SigslotDefault : public testing::Test, public sigslot::has_slots<> {
   sigslot::signal0<> signal_;
 };
 
-template <class slot_policy = sigslot::single_threaded,
-          class signal_policy = sigslot::single_threaded>
+template<class slot_policy = sigslot::single_threaded,
+         class signal_policy = sigslot::single_threaded>
 class SigslotReceiver : public sigslot::has_slots<slot_policy> {
  public:
   SigslotReceiver() : signal_(nullptr), signal_count_(0) {}
-  ~SigslotReceiver() {}
+  ~SigslotReceiver() {
+  }
 
   // Provide copy constructor so that tests can exercise the has_slots copy
   // constructor.
   SigslotReceiver(const SigslotReceiver&) = default;
 
   void Connect(sigslot::signal0<signal_policy>* signal) {
-    if (!signal)
-      return;
+    if (!signal) return;
     Disconnect();
     signal_ = signal;
     signal->connect(this,
                     &SigslotReceiver<slot_policy, signal_policy>::OnSignal);
   }
   void Disconnect() {
-    if (!signal_)
-      return;
+    if (!signal_) return;
     signal_->disconnect(this);
     signal_ = nullptr;
   }
-  void OnSignal() { ++signal_count_; }
+  void OnSignal() {
+    ++signal_count_;
+  }
   int signal_count() { return signal_count_; }
 
  private:
@@ -62,8 +62,8 @@ class SigslotReceiver : public sigslot::has_slots<slot_policy> {
   int signal_count_;
 };
 
-template <class slot_policy = sigslot::single_threaded,
-          class mt_signal_policy = sigslot::multi_threaded_local>
+template<class slot_policy = sigslot::single_threaded,
+         class mt_signal_policy = sigslot::multi_threaded_local>
 class SigslotSlotTest : public testing::Test {
  protected:
   SigslotSlotTest() {
@@ -71,8 +71,12 @@ class SigslotSlotTest : public testing::Test {
     TemplateIsMT(&mt_policy);
   }
 
-  virtual void SetUp() { Connect(); }
-  virtual void TearDown() { Disconnect(); }
+  virtual void SetUp() {
+    Connect();
+  }
+  virtual void TearDown() {
+    Disconnect();
+  }
 
   void Disconnect() {
     st_receiver_.Disconnect();
@@ -95,12 +99,12 @@ class SigslotSlotTest : public testing::Test {
 
 typedef SigslotSlotTest<> SigslotSTSlotTest;
 typedef SigslotSlotTest<sigslot::multi_threaded_local,
-                        sigslot::multi_threaded_local>
-    SigslotMTSlotTest;
+                        sigslot::multi_threaded_local> SigslotMTSlotTest;
 
 class multi_threaded_local_fake : public sigslot::multi_threaded_local {
  public:
-  multi_threaded_local_fake() : lock_count_(0), unlock_count_(0) {}
+  multi_threaded_local_fake() : lock_count_(0), unlock_count_(0) {
+  }
 
   void lock() { ++lock_count_; }
   void unlock() { ++unlock_count_; }
@@ -114,14 +118,14 @@ class multi_threaded_local_fake : public sigslot::multi_threaded_local {
   int unlock_count_;
 };
 
-typedef SigslotSlotTest<multi_threaded_local_fake, multi_threaded_local_fake>
-    SigslotMTLockBase;
+typedef SigslotSlotTest<multi_threaded_local_fake,
+                        multi_threaded_local_fake> SigslotMTLockBase;
 
 class SigslotMTLockTest : public SigslotMTLockBase {
  protected:
   SigslotMTLockTest() {}
 
-  void SetUp() override {
+  virtual void SetUp() {
     EXPECT_EQ(0, SlotLockCount());
     SigslotMTLockBase::SetUp();
     // Connects to two signals (ST and MT). However,
@@ -130,7 +134,7 @@ class SigslotMTLockTest : public SigslotMTLockBase {
     // keep track of their own count).
     EXPECT_EQ(1, SlotLockCount());
   }
-  void TearDown() override {
+  virtual void TearDown() {
     const int previous_lock_count = SlotLockCount();
     SigslotMTLockBase::TearDown();
     // Disconnects from two signals. Note analogous to SetUp().
@@ -325,7 +329,9 @@ class Disconnector2 : public sigslot::has_slots<> {
   }
 
  private:
-  void Disconnect() { signal_->disconnect_all(); }
+  void Disconnect() {
+    signal_->disconnect_all();
+  }
 
   sigslot::signal<>* signal_;
 };

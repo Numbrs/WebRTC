@@ -10,7 +10,8 @@
 
 #include "modules/audio_processing/aec3/frame_blocker.h"
 
-#include "modules/audio_processing/aec3/aec3_common.h"
+#include <algorithm>
+
 #include "rtc_base/checks.h"
 
 namespace webrtc {

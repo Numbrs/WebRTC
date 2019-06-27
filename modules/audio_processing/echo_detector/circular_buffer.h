@@ -11,10 +11,9 @@
 #ifndef MODULES_AUDIO_PROCESSING_ECHO_DETECTOR_CIRCULAR_BUFFER_H_
 #define MODULES_AUDIO_PROCESSING_ECHO_DETECTOR_CIRCULAR_BUFFER_H_
 
-#include <stddef.h>
 #include <vector>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 
 namespace webrtc {
 
@@ -25,7 +24,7 @@ struct CircularBuffer {
   ~CircularBuffer();
 
   void Push(float value);
-  absl::optional<float> Pop();
+  rtc::Optional<float> Pop();
   size_t Size() const { return nr_elements_in_buffer_; }
   // This function fills the buffer with zeros, but does not change its size.
   void Clear();

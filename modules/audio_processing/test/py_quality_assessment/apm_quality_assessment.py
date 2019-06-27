@@ -27,7 +27,6 @@ import quality_assessment.echo_path_simulation as echo_path_simulation
 import quality_assessment.eval_scores as eval_scores
 import quality_assessment.evaluation as evaluation
 import quality_assessment.eval_scores_factory as eval_scores_factory
-import quality_assessment.external_vad as external_vad
 import quality_assessment.test_data_generation as test_data_generation
 import quality_assessment.test_data_generation_factory as  \
     test_data_generation_factory
@@ -109,24 +108,6 @@ def _InstanceArgumentsParser():
                               AudioProcWrapper.  \
                               DEFAULT_APM_SIMULATOR_BIN_PATH)
 
-  parser.add_argument('--echo_metric_tool_bin_path', required=False,
-                      help=('path to the echo metric binary '
-                           '(required for the echo eval score)'),
-                      default=None)
-
-  parser.add_argument('--copy_with_identity_generator', required=False,
-                      help=('If true, the identity test data generator makes a '
-                            'copy of the clean speech input file.'),
-                      default=False)
-
-  parser.add_argument('--external_vad_paths', nargs='+', required=False,
-                      help=('Paths to external VAD programs. Each must take'
-                            '\'-i <wav file> -o <output>\' inputs'), default=[])
-
-  parser.add_argument('--external_vad_names', nargs='+', required=False,
-                      help=('Keys to the vad paths. Must be different and '
-                            'as many as the paths.'), default=[])
-
   return parser
 
 
@@ -142,12 +123,6 @@ def _ValidateArguments(args, parser):
                  'also required')
     sys.exit(1)
 
-  if len(args.external_vad_names) != len(args.external_vad_paths):
-    parser.error('If provided, --external_vad_paths and '
-                 '--external_vad_names must '
-                 'have the same number of arguments.')
-    sys.exit(1)
-
 
 def main():
   # TODO(alessiob): level = logging.INFO once debugged.
@@ -160,16 +135,11 @@ def main():
       test_data_generator_factory=(
           test_data_generation_factory.TestDataGeneratorFactory(
               aechen_ir_database_path=args.air_db_path,
-              noise_tracks_path=args.additive_noise_tracks_path,
-              copy_with_identity=args.copy_with_identity_generator)),
+              noise_tracks_path=args.additive_noise_tracks_path)),
       evaluation_score_factory=eval_scores_factory.EvaluationScoreWorkerFactory(
-          polqa_tool_bin_path=os.path.join(args.polqa_path, _POLQA_BIN_NAME),
-          echo_metric_tool_bin_path=args.echo_metric_tool_bin_path
-      ),
+          polqa_tool_bin_path=os.path.join(args.polqa_path, _POLQA_BIN_NAME)),
       ap_wrapper=audioproc_wrapper.AudioProcWrapper(args.apm_sim_path),
-      evaluator=evaluation.ApmModuleEvaluator(),
-      external_vads=external_vad.ExternalVad.ConstructVadDict(
-          args.external_vad_paths, args.external_vad_names))
+      evaluator=evaluation.ApmModuleEvaluator())
   simulator.Run(
       config_filepaths=args.config_files,
       capture_input_filepaths=args.capture_input_files,

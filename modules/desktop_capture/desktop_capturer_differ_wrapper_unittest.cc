@@ -21,9 +21,10 @@
 #include "modules/desktop_capture/fake_desktop_capturer.h"
 #include "modules/desktop_capture/mock_desktop_capturer_callback.h"
 #include "rtc_base/random.h"
-#include "rtc_base/time_utils.h"
+#include "rtc_base/timeutils.h"
 #include "system_wrappers/include/cpu_features_wrapper.h"
 #include "test/gtest.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -121,8 +122,8 @@ void ExecuteDifferWrapperCase(BlackWhiteDesktopFramePainter* frame_painter,
               OnCaptureResultPtr(DesktopCapturer::Result::SUCCESS, testing::_))
       .Times(1)
       .WillOnce(testing::Invoke([&updated_region, check_result, exactly_match](
-                                    DesktopCapturer::Result result,
-                                    std::unique_ptr<DesktopFrame>* frame) {
+          DesktopCapturer::Result result,
+          std::unique_ptr<DesktopFrame>* frame) {
         ASSERT_EQ(result, DesktopCapturer::Result::SUCCESS);
         if (check_result) {
           if (exactly_match) {

@@ -11,7 +11,6 @@
 #include "modules/audio_coding/audio_network_adaptor/controller_manager.h"
 
 #include <cmath>
-#include <string>
 #include <utility>
 
 #include "modules/audio_coding/audio_network_adaptor/bitrate_controller.h"
@@ -23,7 +22,7 @@
 #include "modules/audio_coding/audio_network_adaptor/frame_length_controller.h"
 #include "modules/audio_coding/audio_network_adaptor/util/threshold_curve.h"
 #include "rtc_base/ignore_wundef.h"
-#include "rtc_base/time_utils.h"
+#include "rtc_base/timeutils.h"
 
 #if WEBRTC_ENABLE_PROTOBUF
 RTC_PUSH_IGNORING_WUNDEF()
@@ -148,13 +147,13 @@ std::unique_ptr<FrameLengthController> CreateFrameLengthController(
   }
 
   FrameLengthController::Config ctor_config(
-      std::set<int>(), initial_frame_length_ms, min_encoder_bitrate_bps,
+      std::vector<int>(), initial_frame_length_ms, min_encoder_bitrate_bps,
       config.fl_increasing_packet_loss_fraction(),
       config.fl_decreasing_packet_loss_fraction(), fl_increase_overhead_offset,
       fl_decrease_overhead_offset, std::move(fl_changing_bandwidths_bps));
 
   for (auto frame_length : encoder_frame_lengths_ms)
-    ctor_config.encoder_frame_lengths_ms.insert(frame_length);
+    ctor_config.encoder_frame_lengths_ms.push_back(frame_length);
 
   return std::unique_ptr<FrameLengthController>(
       new FrameLengthController(ctor_config));
@@ -214,7 +213,7 @@ ControllerManagerImpl::Config::Config(int min_reordering_time_ms,
 ControllerManagerImpl::Config::~Config() = default;
 
 std::unique_ptr<ControllerManager> ControllerManagerImpl::Create(
-    const std::string& config_string,
+    const ProtoString& config_string,
     size_t num_encoder_channels,
     rtc::ArrayView<const int> encoder_frame_lengths_ms,
     int min_encoder_bitrate_bps,
@@ -230,7 +229,7 @@ std::unique_ptr<ControllerManager> ControllerManagerImpl::Create(
 }
 
 std::unique_ptr<ControllerManager> ControllerManagerImpl::Create(
-    const std::string& config_string,
+    const ProtoString& config_string,
     size_t num_encoder_channels,
     rtc::ArrayView<const int> encoder_frame_lengths_ms,
     int min_encoder_bitrate_bps,
@@ -297,9 +296,9 @@ std::unique_ptr<ControllerManager> ControllerManagerImpl::Create(
   }
 
   if (scoring_points.size() == 0) {
-    return std::unique_ptr<ControllerManagerImpl>(
-        new ControllerManagerImpl(ControllerManagerImpl::Config(0, 0),
-                                  std::move(controllers), scoring_points));
+    return std::unique_ptr<ControllerManagerImpl>(new ControllerManagerImpl(
+        ControllerManagerImpl::Config(0, 0), std::move(controllers),
+        scoring_points));
   } else {
     RTC_CHECK(controller_manager_config.has_min_reordering_time_ms());
     RTC_CHECK(controller_manager_config.has_min_reordering_squared_distance());
@@ -328,7 +327,7 @@ ControllerManagerImpl::ControllerManagerImpl(
     const std::map<const Controller*, std::pair<int, float>>& scoring_points)
     : config_(config),
       controllers_(std::move(controllers)),
-      last_reordering_time_ms_(absl::nullopt),
+      last_reordering_time_ms_(rtc::Optional<int64_t>()),
       last_scoring_point_(0, 0.0) {
   for (auto& controller : controllers_)
     default_sorted_controllers_.push_back(controller.get());
@@ -390,7 +389,7 @@ std::vector<Controller*> ControllerManagerImpl::GetSortedControllers(
 
   if (sorted_controllers_ != sorted_controllers) {
     sorted_controllers_ = sorted_controllers;
-    last_reordering_time_ms_ = now_ms;
+    last_reordering_time_ms_ = rtc::Optional<int64_t>(now_ms);
     last_scoring_point_ = scoring_point;
   }
   return sorted_controllers_;

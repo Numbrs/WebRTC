@@ -11,17 +11,23 @@
 #ifndef RTC_BASE_PLATFORM_THREAD_H_
 #define RTC_BASE_PLATFORM_THREAD_H_
 
-#ifndef WEBRTC_WIN
-#include <pthread.h>
-#endif
 #include <string>
 
-#include "absl/strings/string_view.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "rtc_base/event.h"
 #include "rtc_base/platform_thread_types.h"
 #include "rtc_base/thread_checker.h"
 
 namespace rtc {
+
+PlatformThreadId CurrentThreadId();
+PlatformThreadRef CurrentThreadRef();
+
+// Compares two thread identifiers for equality.
+bool IsThreadRefEqual(const PlatformThreadRef& a, const PlatformThreadRef& b);
+
+// Sets the current thread name.
+void SetCurrentThreadName(const char* name);
 
 // Callback function that the spawned thread will enter once spawned.
 // A return value of false is interpreted as that the function has no
@@ -52,10 +58,10 @@ class PlatformThread {
  public:
   PlatformThread(ThreadRunFunctionDeprecated func,
                  void* obj,
-                 absl::string_view thread_name);
+                 const char* thread_name);
   PlatformThread(ThreadRunFunction func,
                  void* obj,
-                 absl::string_view thread_name,
+                 const char* thread_name,
                  ThreadPriority priority = kNormalPriority);
   virtual ~PlatformThread();
 

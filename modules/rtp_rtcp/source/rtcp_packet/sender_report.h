@@ -27,10 +27,6 @@ class SenderReport : public RtcpPacket {
   static constexpr size_t kMaxNumberOfReportBlocks = 0x1f;
 
   SenderReport();
-  SenderReport(const SenderReport&);
-  SenderReport(SenderReport&&);
-  SenderReport& operator=(const SenderReport&);
-  SenderReport& operator=(SenderReport&&);
   ~SenderReport() override;
 
   // Parse assumes header is already parsed and validated.
@@ -66,10 +62,10 @@ class SenderReport : public RtcpPacket {
   bool Create(uint8_t* packet,
               size_t* index,
               size_t max_length,
-              PacketReadyCallback callback) const override;
+              RtcpPacket::PacketReadyCallback* callback) const override;
 
  private:
-  static constexpr size_t kSenderBaseLength = 24;
+  const size_t kSenderBaseLength = 24;
 
   uint32_t sender_ssrc_;
   NtpTime ntp_;

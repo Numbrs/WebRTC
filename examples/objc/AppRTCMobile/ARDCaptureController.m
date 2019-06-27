@@ -10,11 +10,7 @@
 
 #import "ARDCaptureController.h"
 
-#import <WebRTC/RTCLogging.h>
-
 #import "ARDSettingsModel.h"
-
-const Float64 kFramerateLimit = 30.0;
 
 @implementation ARDCaptureController {
   RTCCameraVideoCapturer *_capturer;
@@ -24,7 +20,7 @@ const Float64 kFramerateLimit = 30.0;
 
 - (instancetype)initWithCapturer:(RTCCameraVideoCapturer *)capturer
                         settings:(ARDSettingsModel *)settings {
-  if (self = [super init]) {
+  if ([super init]) {
     _capturer = capturer;
     _settings = settings;
     _usingFrontCamera = YES;
@@ -38,14 +34,6 @@ const Float64 kFramerateLimit = 30.0;
       _usingFrontCamera ? AVCaptureDevicePositionFront : AVCaptureDevicePositionBack;
   AVCaptureDevice *device = [self findDeviceForPosition:position];
   AVCaptureDeviceFormat *format = [self selectFormatForDevice:device];
-
-  if (format == nil) {
-    RTCLogError(@"No valid formats for device %@", device);
-    NSAssert(NO, @"");
-
-    return;
-  }
-
   NSInteger fps = [self selectFpsForFormat:format];
 
   [_capturer startCaptureWithDevice:device format:format fps:fps];
@@ -82,25 +70,23 @@ const Float64 kFramerateLimit = 30.0;
 
   for (AVCaptureDeviceFormat *format in formats) {
     CMVideoDimensions dimension = CMVideoFormatDescriptionGetDimensions(format.formatDescription);
-    FourCharCode pixelFormat = CMFormatDescriptionGetMediaSubType(format.formatDescription);
     int diff = abs(targetWidth - dimension.width) + abs(targetHeight - dimension.height);
     if (diff < currentDiff) {
       selectedFormat = format;
       currentDiff = diff;
-    } else if (diff == currentDiff && pixelFormat == [_capturer preferredOutputPixelFormat]) {
-      selectedFormat = format;
     }
   }
 
+  NSAssert(selectedFormat != nil, @"No suitable capture format found.");
   return selectedFormat;
 }
 
 - (NSInteger)selectFpsForFormat:(AVCaptureDeviceFormat *)format {
-  Float64 maxSupportedFramerate = 0;
+  Float64 maxFramerate = 0;
   for (AVFrameRateRange *fpsRange in format.videoSupportedFrameRateRanges) {
-    maxSupportedFramerate = fmax(maxSupportedFramerate, fpsRange.maxFrameRate);
+    maxFramerate = fmax(maxFramerate, fpsRange.maxFrameRate);
   }
-  return fmin(maxSupportedFramerate, kFramerateLimit);
+  return maxFramerate;
 }
 
 @end

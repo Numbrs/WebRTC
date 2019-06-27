@@ -18,9 +18,9 @@
 #include "modules/audio_coding/neteq/statistics_calculator.h"
 #include "modules/audio_coding/neteq/sync_buffer.h"
 #include "modules/audio_coding/neteq/tools/resample_input_audio_file.h"
-#include "rtc_base/numerics/safe_conversions.h"
+#include "rtc_base/safe_conversions.h"
 #include "test/gtest.h"
-#include "test/testsupport/file_utils.h"
+#include "test/testsupport/fileutils.h"
 
 namespace webrtc {
 
@@ -51,16 +51,14 @@ TEST(Expand, CreateUsingFactory) {
 namespace {
 class FakeStatisticsCalculator : public StatisticsCalculator {
  public:
-  void LogDelayedPacketOutageEvent(int num_samples, int fs_hz) override {
-    last_outage_duration_samples_ = num_samples;
+  void LogDelayedPacketOutageEvent(int outage_duration_ms) override {
+    last_outage_duration_ms_ = outage_duration_ms;
   }
 
-  int last_outage_duration_samples() const {
-    return last_outage_duration_samples_;
-  }
+  int last_outage_duration_ms() const { return last_outage_duration_ms_; }
 
  private:
-  int last_outage_duration_samples_ = 0;
+  int last_outage_duration_ms_ = 0;
 };
 
 // This is the same size that is given to the SyncBuffer object in NetEq.
@@ -90,8 +88,8 @@ class ExpandTest : public ::testing::Test {
   void SetUp() override {
     // Fast-forward the input file until there is speech (about 1.1 second into
     // the file).
-    const int speech_start_samples =
-        static_cast<int>(test_sample_rate_hz_ * 1.1f);
+    const size_t speech_start_samples =
+        static_cast<size_t>(test_sample_rate_hz_ * 1.1f);
     ASSERT_TRUE(input_file_.Seek(speech_start_samples));
 
     // Pre-load the sync buffer with speech data.
@@ -122,12 +120,13 @@ TEST_F(ExpandTest, DelayedPacketOutage) {
     EXPECT_EQ(0, expand_.Process(&output));
     EXPECT_GT(output.Size(), 0u);
     sum_output_len_samples += output.Size();
-    EXPECT_EQ(0, statistics_.last_outage_duration_samples());
+    EXPECT_EQ(0, statistics_.last_outage_duration_ms());
   }
   expand_.SetParametersForNormalAfterExpand();
   // Convert |sum_output_len_samples| to milliseconds.
-  EXPECT_EQ(rtc::checked_cast<int>(sum_output_len_samples),
-            statistics_.last_outage_duration_samples());
+  EXPECT_EQ(rtc::checked_cast<int>(sum_output_len_samples /
+                                   (test_sample_rate_hz_ / 1000)),
+            statistics_.last_outage_duration_ms());
 }
 
 // This test is similar to DelayedPacketOutage, but ends by calling
@@ -141,10 +140,10 @@ TEST_F(ExpandTest, LostPacketOutage) {
     EXPECT_EQ(0, expand_.Process(&output));
     EXPECT_GT(output.Size(), 0u);
     sum_output_len_samples += output.Size();
-    EXPECT_EQ(0, statistics_.last_outage_duration_samples());
+    EXPECT_EQ(0, statistics_.last_outage_duration_ms());
   }
   expand_.SetParametersForMergeAfterExpand();
-  EXPECT_EQ(0, statistics_.last_outage_duration_samples());
+  EXPECT_EQ(0, statistics_.last_outage_duration_ms());
 }
 
 // This test is similar to the DelayedPacketOutage test above, but with the
@@ -162,12 +161,13 @@ TEST_F(ExpandTest, CheckOutageStatsAfterReset) {
       expand_.Reset();
       sum_output_len_samples = 0;
     }
-    EXPECT_EQ(0, statistics_.last_outage_duration_samples());
+    EXPECT_EQ(0, statistics_.last_outage_duration_ms());
   }
   expand_.SetParametersForNormalAfterExpand();
   // Convert |sum_output_len_samples| to milliseconds.
-  EXPECT_EQ(rtc::checked_cast<int>(sum_output_len_samples),
-            statistics_.last_outage_duration_samples());
+  EXPECT_EQ(rtc::checked_cast<int>(sum_output_len_samples /
+                                   (test_sample_rate_hz_ / 1000)),
+            statistics_.last_outage_duration_ms());
 }
 
 namespace {

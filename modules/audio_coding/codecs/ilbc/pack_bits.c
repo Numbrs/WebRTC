@@ -16,7 +16,7 @@
 
 ******************************************************************/
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
+#include "defines.h"
 
 /*----------------------------------------------------------------*
  *  unpacking of bits from bitstream, i.e., vector of bytes

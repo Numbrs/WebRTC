@@ -10,8 +10,6 @@
 
 #include "modules/audio_coding/codecs/pcm16b/audio_decoder_pcm16b.h"
 
-#include <utility>
-
 #include "modules/audio_coding/codecs/legacy_encoded_audio_frame.h"
 #include "modules/audio_coding/codecs/pcm16b/pcm16b.h"
 #include "rtc_base/checks.h"

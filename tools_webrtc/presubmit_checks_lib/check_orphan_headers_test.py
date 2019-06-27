@@ -11,7 +11,6 @@ import os
 import sys
 import unittest
 
-#pylint: disable=relative-import
 import check_orphan_headers
 
 

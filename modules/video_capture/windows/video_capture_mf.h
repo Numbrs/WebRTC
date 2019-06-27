@@ -27,13 +27,14 @@ class VideoCaptureMF : public VideoCaptureImpl {
   int32_t Init(const char* device_id);
 
   // Overrides from VideoCaptureImpl.
-  int32_t StartCapture(const VideoCaptureCapability& capability) override;
-  int32_t StopCapture() override;
-  bool CaptureStarted() override;
-  int32_t CaptureSettings(VideoCaptureCapability& settings) override;  // NOLINT
+  virtual int32_t StartCapture(const VideoCaptureCapability& capability);
+  virtual int32_t StopCapture();
+  virtual bool CaptureStarted();
+  virtual int32_t CaptureSettings(
+      VideoCaptureCapability& settings);  // NOLINT
 
  protected:
-  ~VideoCaptureMF() override;
+  virtual ~VideoCaptureMF();
 };
 
 }  // namespace videocapturemodule

@@ -49,3 +49,4 @@ uint32_t UpdateCrc32(uint32_t start, const void* buf, size_t len) {
 }
 
 }  // namespace rtc
+

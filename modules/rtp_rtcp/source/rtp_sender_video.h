@@ -14,37 +14,25 @@
 #include <map>
 #include <memory>
 
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
+#include "api/optional.h"
 #include "common_types.h"  // NOLINT(build/include)
 #include "modules/rtp_rtcp/include/flexfec_sender.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
-#include "modules/rtp_rtcp/source/playout_delay_oracle.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_config.h"
 #include "modules/rtp_rtcp/source/rtp_sender.h"
+#include "modules/rtp_rtcp/source/rtp_utility.h"
 #include "modules/rtp_rtcp/source/ulpfec_generator.h"
-#include "rtc_base/critical_section.h"
-#include "rtc_base/one_time_event.h"
+#include "modules/rtp_rtcp/source/video_codec_information.h"
+#include "rtc_base/criticalsection.h"
+#include "rtc_base/onetimeevent.h"
 #include "rtc_base/rate_statistics.h"
 #include "rtc_base/sequenced_task_checker.h"
 #include "rtc_base/thread_annotations.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
-
-class FrameEncryptorInterface;
 class RtpPacketizer;
 class RtpPacketToSend;
-
-// kConditionallyRetransmitHigherLayers allows retransmission of video frames
-// in higher layers if either the last frame in that layer was too far back in
-// time, or if we estimate that a new frame will be available in a lower layer
-// in a shorter time than it would take to request and receive a retransmission.
-enum RetransmissionMode : uint8_t {
-  kRetransmitOff = 0x0,
-  kRetransmitBaseLayer = 0x2,
-  kRetransmitHigherLayers = 0x4,
-  kConditionallyRetransmitHigherLayers = 0x8,
-};
 
 class RTPSenderVideo {
  public:
@@ -52,14 +40,17 @@ class RTPSenderVideo {
 
   RTPSenderVideo(Clock* clock,
                  RTPSender* rtpSender,
-                 FlexfecSender* flexfec_sender,
-                 PlayoutDelayOracle* playout_delay_oracle,
-                 FrameEncryptorInterface* frame_encryptor,
-                 bool require_frame_encryption,
-                 const WebRtcKeyValueConfig& field_trials);
+                 FlexfecSender* flexfec_sender);
   virtual ~RTPSenderVideo();
 
-  bool SendVideo(FrameType frame_type,
+  virtual RtpVideoCodecTypes VideoCodecType() const;
+
+  static RtpUtility::Payload* CreateVideoPayload(
+      const char payload_name[RTP_PAYLOAD_NAME_SIZE],
+      int8_t payload_type);
+
+  bool SendVideo(RtpVideoCodecTypes video_type,
+                 FrameType frame_type,
                  int8_t payload_type,
                  uint32_t capture_timestamp,
                  int64_t capture_time_ms,
@@ -69,30 +60,24 @@ class RTPSenderVideo {
                  const RTPVideoHeader* video_header,
                  int64_t expected_retransmission_time_ms);
 
-  void RegisterPayloadType(int8_t payload_type, absl::string_view payload_name);
+  void SetVideoCodecType(RtpVideoCodecTypes type);
 
-  // Set RED and ULPFEC payload types. A payload type of -1 means that the
-  // corresponding feature is turned off. Note that we DO NOT support enabling
-  // ULPFEC without enabling RED, and RED is only ever used when ULPFEC is
-  // enabled.
+  // ULPFEC.
   void SetUlpfecConfig(int red_payload_type, int ulpfec_payload_type);
+  void GetUlpfecConfig(int* red_payload_type, int* ulpfec_payload_type) const;
 
   // FlexFEC/ULPFEC.
-  // Set FEC rates, max frames before FEC is sent, and type of FEC masks.
-  // Returns false on failure.
   void SetFecParameters(const FecProtectionParams& delta_params,
                         const FecProtectionParams& key_params);
 
   // FlexFEC.
-  absl::optional<uint32_t> FlexfecSsrc() const;
+  rtc::Optional<uint32_t> FlexfecSsrc() const;
 
   uint32_t VideoBitrateSent() const;
   uint32_t FecOverheadRate() const;
 
-  // Returns the current packetization overhead rate, in bps. Note that this is
-  // the payload overhead, eg the VP8 payload headers, not the RTP headers
-  // or extension/
-  uint32_t PacketizationOverheadBps() const;
+  int SelectiveRetransmissions() const;
+  void SetSelectiveRetransmissions(uint8_t settings);
 
  protected:
   static uint8_t GetTemporalId(const RTPVideoHeader& header);
@@ -128,10 +113,6 @@ class RTPSenderVideo {
                                   StorageType media_packet_storage,
                                   bool protect_media_packet);
 
-  bool LogAndSendToNetwork(std::unique_ptr<RtpPacketToSend> packet,
-                           StorageType storage,
-                           RtpPacketSender::Priority priority);
-
   bool red_enabled() const RTC_EXCLUSIVE_LOCKS_REQUIRED(crit_) {
     return red_payload_type_ >= 0;
   }
@@ -149,23 +130,12 @@ class RTPSenderVideo {
   RTPSender* const rtp_sender_;
   Clock* const clock_;
 
-  // Maps payload type to codec type, for packetization.
-  // TODO(nisse): Set on construction, to avoid lock.
-  rtc::CriticalSection payload_type_crit_;
-  std::map<int8_t, VideoCodecType> payload_type_map_
-      RTC_GUARDED_BY(payload_type_crit_);
-
   // Should never be held when calling out of this class.
   rtc::CriticalSection crit_;
 
+  RtpVideoCodecTypes video_type_;
   int32_t retransmission_settings_ RTC_GUARDED_BY(crit_);
   VideoRotation last_rotation_ RTC_GUARDED_BY(crit_);
-  absl::optional<ColorSpace> last_color_space_ RTC_GUARDED_BY(crit_);
-  bool transmit_color_space_next_frame_ RTC_GUARDED_BY(crit_);
-  // Tracks the current request for playout delay limits from application
-  // and decides whether the current RTP frame should include the playout
-  // delay extension on header.
-  PlayoutDelayOracle* const playout_delay_oracle_;
 
   // RED/ULPFEC.
   int red_payload_type_ RTC_GUARDED_BY(crit_);
@@ -185,21 +155,11 @@ class RTPSenderVideo {
   RateStatistics fec_bitrate_ RTC_GUARDED_BY(stats_crit_);
   // Bitrate used for video payload and RTP headers.
   RateStatistics video_bitrate_ RTC_GUARDED_BY(stats_crit_);
-  RateStatistics packetization_overhead_bitrate_ RTC_GUARDED_BY(stats_crit_);
 
   std::map<int, TemporalLayerStats> frame_stats_by_temporal_layer_
       RTC_GUARDED_BY(stats_crit_);
 
   OneTimeEvent first_frame_sent_;
-
-  // E2EE Custom Video Frame Encryptor (optional)
-  FrameEncryptorInterface* const frame_encryptor_ = nullptr;
-  // If set to true will require all outgoing frames to pass through an
-  // initialized frame_encryptor_ before being sent out of the network.
-  // Otherwise these payloads will be dropped.
-  bool require_frame_encryption_;
-  // Set to true if the generic descriptor should be authenticated.
-  const bool generic_descriptor_auth_experiment_;
 };
 
 }  // namespace webrtc

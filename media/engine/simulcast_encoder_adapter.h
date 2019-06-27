@@ -18,25 +18,22 @@
 #include <utility>
 #include <vector>
 
-#include "absl/types/optional.h"
-#include "api/video_codecs/sdp_video_format.h"
-#include "modules/video_coding/include/video_codec_interface.h"
-#include "rtc_base/atomic_ops.h"
+#include "media/engine/webrtcvideoencoderfactory.h"
+#include "modules/video_coding/codecs/vp8/include/vp8.h"
+#include "rtc_base/atomicops.h"
 #include "rtc_base/sequenced_task_checker.h"
 
 namespace webrtc {
 
 class SimulcastRateAllocator;
-class VideoEncoderFactory;
 
 // SimulcastEncoderAdapter implements simulcast support by creating multiple
 // webrtc::VideoEncoder instances with the given VideoEncoderFactory.
 // The object is created and destroyed on the worker thread, but all public
 // interfaces should be called from the encoder task queue.
-class SimulcastEncoderAdapter : public VideoEncoder {
+class SimulcastEncoderAdapter : public VP8Encoder {
  public:
-  explicit SimulcastEncoderAdapter(VideoEncoderFactory* factory,
-                                   const SdpVideoFormat& format);
+  explicit SimulcastEncoderAdapter(cricket::WebRtcVideoEncoderFactory* factory);
   virtual ~SimulcastEncoderAdapter();
 
   // Implements VideoEncoder.
@@ -48,7 +45,8 @@ class SimulcastEncoderAdapter : public VideoEncoder {
              const CodecSpecificInfo* codec_specific_info,
              const std::vector<FrameType>* frame_types) override;
   int RegisterEncodeCompleteCallback(EncodedImageCallback* callback) override;
-  int SetRateAllocation(const VideoBitrateAllocation& bitrate,
+  int SetChannelParameters(uint32_t packet_loss, int64_t rtt) override;
+  int SetRateAllocation(const BitrateAllocation& bitrate,
                         uint32_t new_framerate) override;
 
   // Eventual handler for the contained encoders' EncodedImageCallbacks, but
@@ -60,7 +58,10 @@ class SimulcastEncoderAdapter : public VideoEncoder {
       const CodecSpecificInfo* codec_specific_info,
       const RTPFragmentationHeader* fragmentation);
 
-  EncoderInfo GetEncoderInfo() const override;
+  VideoEncoder::ScalingSettings GetScalingSettings() const override;
+
+  bool SupportsNativeHandle() const override;
+  const char* ImplementationName() const override;
 
  private:
   struct StreamInfo {
@@ -83,30 +84,23 @@ class SimulcastEncoderAdapter : public VideoEncoder {
     bool send_stream;
   };
 
-  enum class StreamResolution {
-    OTHER,
-    HIGHEST,
-    LOWEST,
-  };
-
   // Populate the codec settings for each simulcast stream.
-  void PopulateStreamCodec(const webrtc::VideoCodec& inst,
-                           int stream_index,
-                           uint32_t start_bitrate_kbps,
-                           StreamResolution stream_resolution,
-                           webrtc::VideoCodec* stream_codec);
+  static void PopulateStreamCodec(const webrtc::VideoCodec& inst,
+                                  int stream_index,
+                                  uint32_t start_bitrate_kbps,
+                                  bool highest_resolution_stream,
+                                  webrtc::VideoCodec* stream_codec);
 
   bool Initialized() const;
 
   void DestroyStoredEncoders();
 
   volatile int inited_;  // Accessed atomically.
-  VideoEncoderFactory* const factory_;
-  const SdpVideoFormat video_format_;
+  cricket::WebRtcVideoEncoderFactory* const factory_;
   VideoCodec codec_;
   std::vector<StreamInfo> streaminfos_;
   EncodedImageCallback* encoded_complete_callback_;
-  EncoderInfo encoder_info_;
+  std::string implementation_name_;
 
   // Used for checking the single-threaded access of the encoder interface.
   rtc::SequencedTaskChecker encoder_queue_;
@@ -114,9 +108,6 @@ class SimulcastEncoderAdapter : public VideoEncoder {
   // Store encoders in between calls to Release and InitEncode, so they don't
   // have to be recreated. Remaining encoders are destroyed by the destructor.
   std::stack<std::unique_ptr<VideoEncoder>> stored_encoders_;
-
-  const absl::optional<unsigned int> experimental_boosted_screenshare_qp_;
-  const bool boost_base_layer_quality_;
 };
 
 }  // namespace webrtc

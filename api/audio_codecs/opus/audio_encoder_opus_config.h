@@ -15,12 +15,12 @@
 
 #include <vector>
 
-#include "absl/types/optional.h"
-#include "rtc_base/system/rtc_export.h"
+#include "api/optional.h"
 
 namespace webrtc {
 
-struct RTC_EXPORT AudioEncoderOpusConfig {
+// NOTE: This struct is still under development and may change without notice.
+struct AudioEncoderOpusConfig {
   static constexpr int kDefaultFrameSizeMs = 20;
 
   // Opus API allows a min bitrate of 500bps, but Opus documentation suggests
@@ -42,7 +42,7 @@ struct RTC_EXPORT AudioEncoderOpusConfig {
 
   // NOTE: This member must always be set.
   // TODO(kwiberg): Turn it into just an int.
-  absl::optional<int> bitrate_bps;
+  rtc::Optional<int> bitrate_bps;
 
   bool fec_enabled;
   bool cbr_enabled;

@@ -10,12 +10,12 @@
 
 package org.webrtc;
 
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
-import java.util.List;
+import java.util.LinkedList;
 
 /** Java version of VideoTrackInterface. */
 public class VideoTrack extends MediaStreamTrack {
+  private final LinkedList<VideoRenderer> renderers = new LinkedList<VideoRenderer>();
   private final IdentityHashMap<VideoSink, Long> sinks = new IdentityHashMap<VideoSink, Long>();
 
   public VideoTrack(long nativeTrack) {
@@ -31,16 +31,9 @@ public class VideoTrack extends MediaStreamTrack {
    * sources produce VideoFrames.
    */
   public void addSink(VideoSink sink) {
-    if (sink == null) {
-      throw new IllegalArgumentException("The VideoSink is not allowed to be null");
-    }
-    // We allow calling addSink() with the same sink multiple times. This is similar to the C++
-    // VideoTrack::AddOrUpdateSink().
-    if (!sinks.containsKey(sink)) {
-      final long nativeSink = nativeWrapSink(sink);
-      sinks.put(sink, nativeSink);
-      nativeAddSink(getNativeMediaStreamTrack(), nativeSink);
-    }
+    final long nativeSink = nativeWrapSink(sink);
+    sinks.put(sink, nativeSink);
+    nativeAddSink(nativeTrack, nativeSink);
   }
 
   /**
@@ -49,30 +42,41 @@ public class VideoTrack extends MediaStreamTrack {
    * If the VideoSink was not attached to the track, this is a no-op.
    */
   public void removeSink(VideoSink sink) {
-    final Long nativeSink = sinks.remove(sink);
-    if (nativeSink != null) {
-      nativeRemoveSink(getNativeMediaStreamTrack(), nativeSink);
+    final long nativeSink = sinks.remove(sink);
+    if (nativeSink != 0) {
+      nativeRemoveSink(nativeTrack, nativeSink);
       nativeFreeSink(nativeSink);
     }
   }
 
-  @Override
+  public void addRenderer(VideoRenderer renderer) {
+    renderers.add(renderer);
+    nativeAddSink(nativeTrack, renderer.nativeVideoRenderer);
+  }
+
+  public void removeRenderer(VideoRenderer renderer) {
+    if (!renderers.remove(renderer)) {
+      return;
+    }
+    nativeRemoveSink(nativeTrack, renderer.nativeVideoRenderer);
+    renderer.dispose();
+  }
+
   public void dispose() {
+    while (!renderers.isEmpty()) {
+      removeRenderer(renderers.getFirst());
+    }
     for (long nativeSink : sinks.values()) {
-      nativeRemoveSink(getNativeMediaStreamTrack(), nativeSink);
+      nativeRemoveSink(nativeTrack, nativeSink);
       nativeFreeSink(nativeSink);
     }
     sinks.clear();
     super.dispose();
   }
 
-  /** Returns a pointer to webrtc::VideoTrackInterface. */
-  long getNativeVideoTrack() {
-    return getNativeMediaStreamTrack();
-  }
+  private static native void nativeAddSink(long nativeTrack, long nativeSink);
+  private static native void nativeRemoveSink(long nativeTrack, long nativeSink);
 
-  private static native void nativeAddSink(long track, long nativeSink);
-  private static native void nativeRemoveSink(long track, long nativeSink);
   private static native long nativeWrapSink(VideoSink sink);
-  private static native void nativeFreeSink(long sink);
+  private static native void nativeFreeSink(long nativeSink);
 }

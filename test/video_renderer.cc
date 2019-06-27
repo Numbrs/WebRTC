@@ -11,6 +11,8 @@
 
 // TODO(pbos): Android renderer
 
+#include "typedefs.h"  // NOLINT(build/include)
+
 namespace webrtc {
 namespace test {
 

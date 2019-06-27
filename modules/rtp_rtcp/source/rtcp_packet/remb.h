@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "modules/rtp_rtcp/source/rtcp_packet/psfb.h"
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {
@@ -22,11 +23,10 @@ class CommonHeader;
 // Receiver Estimated Max Bitrate (REMB) (draft-alvestrand-rmcat-remb).
 class Remb : public Psfb {
  public:
-  static constexpr uint8_t kFeedbackMessageType = Psfb::kAfbMessageType;
+  static constexpr uint8_t kFeedbackMessageType = 15;
   static constexpr size_t kMaxNumberOfSsrcs = 0xff;
 
   Remb();
-  Remb(const Remb&);
   ~Remb() override;
 
   // Parse assumes header is already parsed and validated.
@@ -43,7 +43,7 @@ class Remb : public Psfb {
   bool Create(uint8_t* packet,
               size_t* index,
               size_t max_length,
-              PacketReadyCallback callback) const override;
+              RtcpPacket::PacketReadyCallback* callback) const override;
 
  private:
   static constexpr uint32_t kUniqueIdentifier = 0x52454D42;  // 'R' 'E' 'M' 'B'.

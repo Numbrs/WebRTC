@@ -14,9 +14,8 @@
 #include <map>
 #include <string>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 #include "common_types.h"  // NOLINT(build/include)
-#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 namespace H264 {
@@ -47,7 +46,7 @@ enum Level {
 };
 
 struct ProfileLevelId {
-  constexpr ProfileLevelId(Profile profile, Level level)
+  ProfileLevelId(Profile profile, Level level)
       : profile(profile), level(level) {}
   Profile profile;
   Level level;
@@ -56,25 +55,24 @@ struct ProfileLevelId {
 // Parse profile level id that is represented as a string of 3 hex bytes.
 // Nothing will be returned if the string is not a recognized H264
 // profile level id.
-absl::optional<ProfileLevelId> ParseProfileLevelId(const char* str);
+rtc::Optional<ProfileLevelId> ParseProfileLevelId(const char* str);
 
 // Parse profile level id that is represented as a string of 3 hex bytes
 // contained in an SDP key-value map. A default profile level id will be
 // returned if the profile-level-id key is missing. Nothing will be returned if
 // the key is present but the string is invalid.
-RTC_EXPORT absl::optional<ProfileLevelId> ParseSdpProfileLevelId(
+rtc::Optional<ProfileLevelId> ParseSdpProfileLevelId(
     const CodecParameterMap& params);
 
 // Given that a decoder supports up to a given frame size (in pixels) at up to a
 // given number of frames per second, return the highest H.264 level where it
 // can guarantee that it will be able to support all valid encoded streams that
 // are within that level.
-RTC_EXPORT absl::optional<Level> SupportedLevel(int max_frame_pixel_count,
-                                                float max_fps);
+rtc::Optional<Level> SupportedLevel(int max_frame_pixel_count, float max_fps);
 
 // Returns canonical string representation as three hex bytes of the profile
 // level id, or returns nothing for invalid profile level ids.
-RTC_EXPORT absl::optional<std::string> ProfileLevelIdToString(
+rtc::Optional<std::string> ProfileLevelIdToString(
     const ProfileLevelId& profile_level_id);
 
 // Generate codec parameters that will be used as answer in an SDP negotiation
@@ -97,11 +95,6 @@ void GenerateProfileLevelIdForAnswer(
     const CodecParameterMap& local_supported_params,
     const CodecParameterMap& remote_offered_params,
     CodecParameterMap* answer_params);
-
-// Returns true if the parameters have the same H264 profile, i.e. the same
-// H264::Profile (Baseline, High, etc).
-bool IsSameH264Profile(const CodecParameterMap& params1,
-                       const CodecParameterMap& params2);
 
 }  // namespace H264
 }  // namespace webrtc

@@ -11,16 +11,14 @@
 #ifndef MODULES_AUDIO_PROCESSING_GAIN_CONTROL_IMPL_H_
 #define MODULES_AUDIO_PROCESSING_GAIN_CONTROL_IMPL_H_
 
-#include <stddef.h>
-#include <stdint.h>
 #include <memory>
 #include <vector>
 
-#include "absl/types/optional.h"
-#include "api/array_view.h"
-#include "modules/audio_processing/include/gain_control.h"
-#include "rtc_base/constructor_magic.h"
-#include "rtc_base/critical_section.h"
+#include "modules/audio_processing/include/audio_processing.h"
+#include "modules/audio_processing/render_queue_item_verifier.h"
+#include "rtc_base/constructormagic.h"
+#include "rtc_base/criticalsection.h"
+#include "rtc_base/swap_queue.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -30,7 +28,8 @@ class AudioBuffer;
 
 class GainControlImpl : public GainControl {
  public:
-  explicit GainControlImpl(rtc::CriticalSection* crit_capture);
+  GainControlImpl(rtc::CriticalSection* crit_render,
+                  rtc::CriticalSection* crit_capture);
   ~GainControlImpl() override;
 
   void ProcessRenderAudio(rtc::ArrayView<const int16_t> packed_render_audio);
@@ -66,8 +65,9 @@ class GainControlImpl : public GainControl {
   int analog_level_maximum() const override;
   bool stream_is_saturated() const override;
 
-  int Configure() RTC_EXCLUSIVE_LOCKS_REQUIRED(crit_capture_);
+  int Configure();
 
+  rtc::CriticalSection* const crit_render_ RTC_ACQUIRED_BEFORE(crit_capture_);
   rtc::CriticalSection* const crit_capture_;
 
   std::unique_ptr<ApmDataDumper> data_dumper_;
@@ -86,8 +86,8 @@ class GainControlImpl : public GainControl {
 
   std::vector<std::unique_ptr<GainController>> gain_controllers_;
 
-  absl::optional<size_t> num_proc_channels_ RTC_GUARDED_BY(crit_capture_);
-  absl::optional<int> sample_rate_hz_ RTC_GUARDED_BY(crit_capture_);
+  rtc::Optional<size_t> num_proc_channels_ RTC_GUARDED_BY(crit_capture_);
+  rtc::Optional<int> sample_rate_hz_ RTC_GUARDED_BY(crit_capture_);
 
   static int instance_counter_;
   RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(GainControlImpl);

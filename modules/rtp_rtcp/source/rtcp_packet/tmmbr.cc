@@ -10,6 +10,7 @@
 
 #include "modules/rtp_rtcp/source/rtcp_packet/tmmbr.h"
 
+#include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/common_header.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -52,14 +53,14 @@ bool Tmmbr::Parse(const CommonHeader& packet) {
   RTC_DCHECK_EQ(packet.fmt(), kFeedbackMessageType);
 
   if (packet.payload_size_bytes() < kCommonFeedbackLength + TmmbItem::kLength) {
-    RTC_LOG(LS_WARNING) << "Payload length " << packet.payload_size_bytes()
-                        << " is too small for a TMMBR.";
+    LOG(LS_WARNING) << "Payload length " << packet.payload_size_bytes()
+                    << " is too small for a TMMBR.";
     return false;
   }
   size_t items_size_bytes = packet.payload_size_bytes() - kCommonFeedbackLength;
   if (items_size_bytes % TmmbItem::kLength != 0) {
-    RTC_LOG(LS_WARNING) << "Payload length " << packet.payload_size_bytes()
-                        << " is not valid for a TMMBR.";
+    LOG(LS_WARNING) << "Payload length " << packet.payload_size_bytes()
+                    << " is not valid for a TMMBR.";
     return false;
   }
   ParseCommonFeedback(packet.payload());
@@ -87,7 +88,7 @@ size_t Tmmbr::BlockLength() const {
 bool Tmmbr::Create(uint8_t* packet,
                    size_t* index,
                    size_t max_length,
-                   PacketReadyCallback callback) const {
+                   RtcpPacket::PacketReadyCallback* callback) const {
   RTC_DCHECK(!items_.empty());
   while (*index + BlockLength() > max_length) {
     if (!OnBufferFull(packet, index, callback))

@@ -11,14 +11,13 @@
 #ifndef MODULES_AUDIO_CODING_NETEQ_PACKET_H_
 #define MODULES_AUDIO_CODING_NETEQ_PACKET_H_
 
-#include <stdint.h>
 #include <list>
 #include <memory>
 
 #include "api/audio_codecs/audio_decoder.h"
 #include "modules/audio_coding/neteq/tick_timer.h"
 #include "rtc_base/buffer.h"
-#include "rtc_base/checks.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 

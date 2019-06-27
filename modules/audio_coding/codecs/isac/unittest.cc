@@ -10,16 +10,15 @@
 
 #include <algorithm>
 #include <numeric>
+#include <sstream>
 #include <vector>
 
 #include "modules/audio_coding/codecs/isac/fix/include/audio_encoder_isacfix.h"
 #include "modules/audio_coding/codecs/isac/main/include/audio_encoder_isac.h"
 #include "modules/audio_coding/neteq/tools/input_audio_file.h"
 #include "rtc_base/buffer.h"
-#include "rtc_base/numerics/safe_conversions.h"
-#include "rtc_base/strings/string_builder.h"
 #include "test/gtest.h"
-#include "test/testsupport/file_utils.h"
+#include "test/testsupport/fileutils.h"
 
 namespace webrtc {
 
@@ -142,7 +141,7 @@ void TestGetSetBandwidthInfo(const int16_t* speech_data,
 
   int elapsed_time_ms = 0;
   for (int i = 0; elapsed_time_ms < 10000; ++i) {
-    rtc::StringBuilder ss;
+    std::ostringstream ss;
     ss << " i = " << i;
     SCOPED_TRACE(ss.str());
 
@@ -164,12 +163,10 @@ void TestGetSetBandwidthInfo(const int16_t* speech_data,
     const int send_time = elapsed_time_ms * (sample_rate_hz / 1000);
     EXPECT_EQ(0, T::UpdateBwEstimate(
                      encdec, bitstream1.data(), bitstream1.size(), i, send_time,
-                     channel1.Send(send_time,
-                                   rtc::checked_cast<int>(bitstream1.size()))));
+                     channel1.Send(send_time, bitstream1.size())));
     EXPECT_EQ(0, T::UpdateBwEstimate(
                      dec, bitstream2.data(), bitstream2.size(), i, send_time,
-                     channel2.Send(send_time,
-                                   rtc::checked_cast<int>(bitstream2.size()))));
+                     channel2.Send(send_time, bitstream2.size())));
 
     // 3. Decode, and get new BW info from the separate decoder.
     ASSERT_EQ(0, T::SetDecSampRate(encdec, sample_rate_hz));
@@ -252,6 +249,6 @@ std::vector<IsacTestParam> TestCases() {
   return cases;
 }
 
-INSTANTIATE_TEST_SUITE_P(, IsacCommonTest, testing::ValuesIn(TestCases()));
+INSTANTIATE_TEST_CASE_P(, IsacCommonTest, testing::ValuesIn(TestCases()));
 
 }  // namespace webrtc

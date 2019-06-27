@@ -27,9 +27,8 @@ void FuzzOneInput(const uint8_t* data, size_t size) {
   header.ssrc = ByteReader<uint32_t>::ReadBigEndian(&data[i]);
   i += sizeof(uint32_t);
   header.extension.hasTransportSequenceNumber = true;
-  int64_t arrival_time_ms = std::min<int64_t>(
-      std::max<int64_t>(ByteReader<int64_t>::ReadBigEndian(&data[i]), 0),
-      std::numeric_limits<int64_t>::max() / 2);
+  int64_t arrival_time_ms =
+      std::max<int64_t>(ByteReader<int64_t>::ReadBigEndian(&data[i]), 0);
   i += sizeof(int64_t);
   const size_t kMinPacketSize =
       sizeof(size_t) + sizeof(uint16_t) + sizeof(uint8_t);
@@ -42,7 +41,7 @@ void FuzzOneInput(const uint8_t* data, size_t size) {
     rbe->IncomingPacket(arrival_time_ms, payload_size, header);
     clock.AdvanceTimeMilliseconds(5);
     arrival_time_ms += ByteReader<uint8_t>::ReadBigEndian(&data[i]);
-    i += sizeof(uint8_t);
+    arrival_time_ms += sizeof(uint8_t);
   }
   rbe->Process();
 }

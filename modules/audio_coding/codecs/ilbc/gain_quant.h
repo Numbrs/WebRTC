@@ -19,18 +19,17 @@
 #ifndef MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_GAIN_QUANT_H_
 #define MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_GAIN_QUANT_H_
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
+#include "defines.h"
 
 /*----------------------------------------------------------------*
  *  quantizer for the gain in the gain-shape coding of residual
  *---------------------------------------------------------------*/
 
-int16_t
-WebRtcIlbcfix_GainQuant(               /* (o) quantized gain value */
-                        int16_t gain,  /* (i) gain value Q14 */
-                        int16_t maxIn, /* (i) maximum of gain value Q14 */
-                        int16_t stage, /* (i) The stage of the search */
-                        int16_t* index /* (o) quantization index */
-                        );
+int16_t WebRtcIlbcfix_GainQuant( /* (o) quantized gain value */
+    int16_t gain, /* (i) gain value Q14 */
+    int16_t maxIn, /* (i) maximum of gain value Q14 */
+    int16_t stage, /* (i) The stage of the search */
+    int16_t *index /* (o) quantization index */
+                                       );
 
 #endif

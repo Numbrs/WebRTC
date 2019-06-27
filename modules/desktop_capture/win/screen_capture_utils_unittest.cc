@@ -10,8 +10,8 @@
 
 #include "modules/desktop_capture/win/screen_capture_utils.h"
 
-#include <string>
 #include <vector>
+#include <string>
 
 #include "modules/desktop_capture/desktop_capturer.h"
 #include "test/gtest.h"

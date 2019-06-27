@@ -14,24 +14,11 @@
 namespace webrtc {
 
 struct EchoPathVariability {
-  enum class DelayAdjustment {
-    kNone,
-    kBufferReadjustment,
-    kBufferFlush,
-    kDelayReset,
-    kNewDetectedDelay
-  };
+  EchoPathVariability(bool gain_change, bool delay_change);
 
-  EchoPathVariability(bool gain_change,
-                      DelayAdjustment delay_change,
-                      bool clock_drift);
-
-  bool AudioPathChanged() const {
-    return gain_change || delay_change != DelayAdjustment::kNone;
-  }
+  bool AudioPathChanged() const { return gain_change || delay_change; }
   bool gain_change;
-  DelayAdjustment delay_change;
-  bool clock_drift;
+  bool delay_change;
 };
 
 }  // namespace webrtc

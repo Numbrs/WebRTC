@@ -11,10 +11,10 @@
 #ifndef MODULES_AUDIO_CODING_NETEQ_RANDOM_VECTOR_H_
 #define MODULES_AUDIO_CODING_NETEQ_RANDOM_VECTOR_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include <string.h>  // size_t
 
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -24,7 +24,10 @@ class RandomVector {
   static const size_t kRandomTableSize = 256;
   static const int16_t kRandomTable[kRandomTableSize];
 
-  RandomVector() : seed_(777), seed_increment_(1) {}
+  RandomVector()
+      : seed_(777),
+        seed_increment_(1) {
+  }
 
   void Reset();
 

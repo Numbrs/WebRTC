@@ -11,10 +11,11 @@
 #import "ARDSettingsStore.h"
 
 static NSString *const kVideoResolutionKey = @"rtc_video_resolution_key";
-static NSString *const kVideoCodecKey = @"rtc_video_codec_info_key";
+static NSString *const kVideoCodecKey = @"rtc_video_codec_key";
 static NSString *const kBitrateKey = @"rtc_max_bitrate_key";
 static NSString *const kAudioOnlyKey = @"rtc_audio_only_key";
 static NSString *const kCreateAecDumpKey = @"rtc_create_aec_dump_key";
+static NSString *const kUseLevelControllerKey = @"rtc_use_level_controller_key";
 static NSString *const kUseManualAudioConfigKey = @"rtc_use_manual_audio_config_key";
 
 NS_ASSUME_NONNULL_BEGIN
@@ -27,25 +28,22 @@ NS_ASSUME_NONNULL_BEGIN
 @implementation ARDSettingsStore
 
 + (void)setDefaultsForVideoResolution:(NSString *)videoResolution
-                           videoCodec:(NSData *)videoCodec
+                           videoCodec:(NSString *)videoCodec
                               bitrate:(nullable NSNumber *)bitrate
                             audioOnly:(BOOL)audioOnly
                         createAecDump:(BOOL)createAecDump
+                   useLevelController:(BOOL)useLevelController
                  useManualAudioConfig:(BOOL)useManualAudioConfig {
   NSMutableDictionary<NSString *, id> *defaultsDictionary = [@{
+    kVideoResolutionKey : videoResolution,
+    kVideoCodecKey : videoCodec,
     kAudioOnlyKey : @(audioOnly),
     kCreateAecDumpKey : @(createAecDump),
+    kUseLevelControllerKey : @(useLevelController),
     kUseManualAudioConfigKey : @(useManualAudioConfig)
   } mutableCopy];
-
-  if (videoResolution) {
-    defaultsDictionary[kVideoResolutionKey] = videoResolution;
-  }
-  if (videoCodec) {
-    defaultsDictionary[kVideoCodecKey] = videoCodec;
-  }
   if (bitrate) {
-    defaultsDictionary[kBitrateKey] = bitrate;
+    [defaultsDictionary setObject:bitrate forKey:kBitrateKey];
   }
   [[NSUserDefaults standardUserDefaults] registerDefaults:defaultsDictionary];
 }
@@ -66,11 +64,11 @@ NS_ASSUME_NONNULL_BEGIN
   [self.storage synchronize];
 }
 
-- (NSData *)videoCodec {
+- (NSString *)videoCodec {
   return [self.storage objectForKey:kVideoCodecKey];
 }
 
-- (void)setVideoCodec:(NSData *)videoCodec {
+- (void)setVideoCodec:(NSString *)videoCodec {
   [self.storage setObject:videoCodec forKey:kVideoCodecKey];
   [self.storage synchronize];
 }
@@ -99,6 +97,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)setCreateAecDump:(BOOL)createAecDump {
   [self.storage setBool:createAecDump forKey:kCreateAecDumpKey];
+  [self.storage synchronize];
+}
+
+- (BOOL)useLevelController {
+  return [self.storage boolForKey:kUseLevelControllerKey];
+}
+
+- (void)setUseLevelController:(BOOL)useLevelController {
+  [self.storage setBool:useLevelController forKey:kUseLevelControllerKey];
   [self.storage synchronize];
 }
 

@@ -18,12 +18,10 @@ namespace webrtc {
 namespace {
 
 using ::testing::_;
-using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Invoke;
-using ::testing::MockFunction;
-using ::testing::UnorderedElementsAreArray;
 using ::testing::make_tuple;
+using ::testing::UnorderedElementsAreArray;
 using ::webrtc::rtcp::Nack;
 
 constexpr uint32_t kSenderSsrc = 0x12345678;
@@ -128,26 +126,30 @@ TEST(RtcpPacketNackTest, CreateFragmented) {
   nack.SetMediaSsrc(kRemoteSsrc);
   nack.SetPacketIds(kList, kListLength);
 
+  class MockPacketReadyCallback : public rtcp::RtcpPacket::PacketReadyCallback {
+   public:
+    MOCK_METHOD2(OnPacketReady, void(uint8_t*, size_t));
+  } verifier;
+
+  class NackVerifier {
+   public:
+    explicit NackVerifier(std::vector<uint16_t> ids) : ids_(ids) {}
+    void operator()(uint8_t* data, size_t length) {
+      Nack nack;
+      EXPECT_TRUE(test::ParseSinglePacket(data, length, &nack));
+      EXPECT_EQ(kSenderSsrc, nack.sender_ssrc());
+      EXPECT_EQ(kRemoteSsrc, nack.media_ssrc());
+      EXPECT_THAT(nack.packet_ids(), ElementsAreArray(ids_));
+    }
+    std::vector<uint16_t> ids_;
+  } packet1({1, 100, 200}), packet2({300, 400});
+
+  EXPECT_CALL(verifier, OnPacketReady(_, _))
+      .WillOnce(Invoke(packet1))
+      .WillOnce(Invoke(packet2));
   const size_t kBufferSize = 12 + (3 * 4);  // Fits common header + 3 nack items
-
-  MockFunction<void(rtc::ArrayView<const uint8_t>)> callback;
-  EXPECT_CALL(callback, Call(_))
-      .WillOnce(Invoke([&](rtc::ArrayView<const uint8_t> packet) {
-        Nack nack;
-        EXPECT_TRUE(test::ParseSinglePacket(packet, &nack));
-        EXPECT_EQ(kSenderSsrc, nack.sender_ssrc());
-        EXPECT_EQ(kRemoteSsrc, nack.media_ssrc());
-        EXPECT_THAT(nack.packet_ids(), ElementsAre(1, 100, 200));
-      }))
-      .WillOnce(Invoke([&](rtc::ArrayView<const uint8_t> packet) {
-        Nack nack;
-        EXPECT_TRUE(test::ParseSinglePacket(packet, &nack));
-        EXPECT_EQ(kSenderSsrc, nack.sender_ssrc());
-        EXPECT_EQ(kRemoteSsrc, nack.media_ssrc());
-        EXPECT_THAT(nack.packet_ids(), ElementsAre(300, 400));
-      }));
-
-  EXPECT_TRUE(nack.Build(kBufferSize, callback.AsStdFunction()));
+  uint8_t buffer[kBufferSize];
+  EXPECT_TRUE(nack.BuildExternalBuffer(buffer, kBufferSize, &verifier));
 }
 
 TEST(RtcpPacketNackTest, CreateFailsWithTooSmallBuffer) {
@@ -157,10 +159,15 @@ TEST(RtcpPacketNackTest, CreateFailsWithTooSmallBuffer) {
   nack.SetSenderSsrc(kSenderSsrc);
   nack.SetMediaSsrc(kRemoteSsrc);
   nack.SetPacketIds(kList, 1);
-
-  MockFunction<void(rtc::ArrayView<const uint8_t>)> callback;
-  EXPECT_CALL(callback, Call(_)).Times(0);
-  EXPECT_FALSE(nack.Build(kMinNackBlockSize - 1, callback.AsStdFunction()));
+  class Verifier : public rtcp::RtcpPacket::PacketReadyCallback {
+   public:
+    void OnPacketReady(uint8_t* data, size_t length) override {
+      ADD_FAILURE() << "Buffer should be too small.";
+    }
+  } verifier;
+  uint8_t buffer[kMinNackBlockSize - 1];
+  EXPECT_FALSE(
+      nack.BuildExternalBuffer(buffer, kMinNackBlockSize - 1, &verifier));
 }
 
 TEST(RtcpPacketNackTest, ParseFailsWithTooSmallBuffer) {

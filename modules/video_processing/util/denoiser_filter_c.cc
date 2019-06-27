@@ -9,7 +9,6 @@
  */
 
 #include <stdlib.h>
-#include <string.h>
 
 #include "modules/video_processing/util/denoiser_filter_c.h"
 

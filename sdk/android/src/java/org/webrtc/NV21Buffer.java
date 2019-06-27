@@ -10,21 +10,22 @@
 
 package org.webrtc;
 
-import android.support.annotation.Nullable;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class NV21Buffer implements VideoFrame.Buffer {
   private final byte[] data;
   private final int width;
   private final int height;
-  private final RefCountDelegate refCountDelegate;
+  private final Runnable releaseCallback;
+  private final Object refCountLock = new Object();
 
-  public NV21Buffer(byte[] data, int width, int height, @Nullable Runnable releaseCallback) {
+  private int refCount = 1;
+
+  public NV21Buffer(byte[] data, int width, int height, Runnable releaseCallback) {
     this.data = data;
     this.width = width;
     this.height = height;
-    this.refCountDelegate = new RefCountDelegate(releaseCallback);
+    this.releaseCallback = releaseCallback;
   }
 
   @Override
@@ -46,12 +47,18 @@ public class NV21Buffer implements VideoFrame.Buffer {
 
   @Override
   public void retain() {
-    refCountDelegate.retain();
+    synchronized (refCountLock) {
+      ++refCount;
+    }
   }
 
   @Override
   public void release() {
-    refCountDelegate.release();
+    synchronized (refCountLock) {
+      if (--refCount == 0 && releaseCallback != null) {
+        releaseCallback.run();
+      }
+    }
   }
 
   @Override

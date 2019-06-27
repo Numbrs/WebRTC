@@ -11,8 +11,7 @@
 #ifndef MODULES_PACING_INTERVAL_BUDGET_H_
 #define MODULES_PACING_INTERVAL_BUDGET_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include "common_types.h"  // NOLINT(build/include)
 
 namespace webrtc {
 

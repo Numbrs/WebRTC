@@ -125,4 +125,4 @@ TEST(PlatformThreadTest, DISABLED_TooBusyDeprecated) {
   thread.Stop();
 }
 
-}  // namespace rtc
+}  // rtc

@@ -13,26 +13,26 @@
 #include <memory>
 #include <vector>
 
-#include "absl/memory/memory.h"
-#include "absl/strings/match.h"
+#include "common_types.h"  // NOLINT(build/include)
 #include "modules/audio_coding/codecs/g711/audio_decoder_pcm.h"
-#include "rtc_base/numerics/safe_conversions.h"
+#include "rtc_base/ptr_util.h"
+#include "rtc_base/safe_conversions.h"
 
 namespace webrtc {
 
-absl::optional<AudioDecoderG711::Config> AudioDecoderG711::SdpToConfig(
+rtc::Optional<AudioDecoderG711::Config> AudioDecoderG711::SdpToConfig(
     const SdpAudioFormat& format) {
-  const bool is_pcmu = absl::EqualsIgnoreCase(format.name, "PCMU");
-  const bool is_pcma = absl::EqualsIgnoreCase(format.name, "PCMA");
+  const bool is_pcmu = STR_CASE_CMP(format.name.c_str(), "PCMU") == 0;
+  const bool is_pcma = STR_CASE_CMP(format.name.c_str(), "PCMA") == 0;
   if (format.clockrate_hz == 8000 && format.num_channels >= 1 &&
       (is_pcmu || is_pcma)) {
     Config config;
     config.type = is_pcmu ? Config::Type::kPcmU : Config::Type::kPcmA;
     config.num_channels = rtc::dchecked_cast<int>(format.num_channels);
     RTC_DCHECK(config.IsOk());
-    return config;
+    return rtc::Optional<Config>(config);
   } else {
-    return absl::nullopt;
+    return rtc::Optional<Config>();
   }
 }
 
@@ -44,14 +44,13 @@ void AudioDecoderG711::AppendSupportedDecoders(
 }
 
 std::unique_ptr<AudioDecoder> AudioDecoderG711::MakeAudioDecoder(
-    const Config& config,
-    absl::optional<AudioCodecPairId> /*codec_pair_id*/) {
+    const Config& config) {
   RTC_DCHECK(config.IsOk());
   switch (config.type) {
     case Config::Type::kPcmU:
-      return absl::make_unique<AudioDecoderPcmU>(config.num_channels);
+      return rtc::MakeUnique<AudioDecoderPcmU>(config.num_channels);
     case Config::Type::kPcmA:
-      return absl::make_unique<AudioDecoderPcmA>(config.num_channels);
+      return rtc::MakeUnique<AudioDecoderPcmA>(config.num_channels);
     default:
       return nullptr;
   }

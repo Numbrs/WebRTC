@@ -11,10 +11,11 @@
 #include "modules/rtp_rtcp/source/forward_error_correction.h"
 
 #include <string.h>
+
 #include <algorithm>
+#include <iterator>
 #include <utility>
 
-#include "modules/include/module_common_types_public.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/flexfec_header_reader_writer.h"
@@ -22,7 +23,7 @@
 #include "modules/rtp_rtcp/source/ulpfec_header_reader_writer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/numerics/mod_ops.h"
+#include "rtc_base/mod_ops.h"
 
 namespace webrtc {
 
@@ -51,7 +52,7 @@ int32_t ForwardErrorCorrection::Packet::Release() {
 // the std::unique_ptr's are not covariant w.r.t. the types that
 // they are pointing to.
 template <typename S, typename T>
-bool ForwardErrorCorrection::SortablePacket::LessThan::operator()(
+bool ForwardErrorCorrection::SortablePacket::LessThan::operator() (
     const S& first,
     const T& second) {
   RTC_DCHECK_EQ(first->ssrc, second->ssrc);
@@ -117,9 +118,9 @@ int ForwardErrorCorrection::EncodeFec(const PacketList& media_packets,
   RTC_DCHECK(fec_packets->empty());
   const size_t max_media_packets = fec_header_writer_->MaxMediaPackets();
   if (num_media_packets > max_media_packets) {
-    RTC_LOG(LS_WARNING) << "Can't protect " << num_media_packets
-                        << " media packets per frame. Max is "
-                        << max_media_packets << ".";
+    LOG(LS_WARNING) << "Can't protect " << num_media_packets
+                    << " media packets per frame. Max is " << max_media_packets
+                    << ".";
     return -1;
   }
 
@@ -127,18 +128,16 @@ int ForwardErrorCorrection::EncodeFec(const PacketList& media_packets,
   for (const auto& media_packet : media_packets) {
     RTC_DCHECK(media_packet);
     if (media_packet->length < kRtpHeaderSize) {
-      RTC_LOG(LS_WARNING) << "Media packet " << media_packet->length
-                          << " bytes "
-                          << "is smaller than RTP header.";
+      LOG(LS_WARNING) << "Media packet " << media_packet->length << " bytes "
+                      << "is smaller than RTP header.";
       return -1;
     }
     // Ensure the FEC packets will fit in a typical MTU.
     if (media_packet->length + MaxPacketOverhead() + kTransportOverhead >
         IP_PACKET_SIZE) {
-      RTC_LOG(LS_WARNING) << "Media packet " << media_packet->length
-                          << " bytes "
-                          << "with overhead is larger than " << IP_PACKET_SIZE
-                          << " bytes.";
+      LOG(LS_WARNING) << "Media packet " << media_packet->length << " bytes "
+                      << "with overhead is larger than " << IP_PACKET_SIZE
+                      << " bytes.";
     }
   }
 
@@ -154,19 +153,16 @@ int ForwardErrorCorrection::EncodeFec(const PacketList& media_packets,
     fec_packets->push_back(&generated_fec_packets_[i]);
   }
 
-  internal::PacketMaskTable mask_table(fec_mask_type, num_media_packets);
+  const internal::PacketMaskTable mask_table(fec_mask_type, num_media_packets);
   packet_mask_size_ = internal::PacketMaskSize(num_media_packets);
   memset(packet_masks_, 0, num_fec_packets * packet_mask_size_);
   internal::GeneratePacketMasks(num_media_packets, num_fec_packets,
                                 num_important_packets, use_unequal_protection,
-                                &mask_table, packet_masks_);
+                                mask_table, packet_masks_);
 
   // Adapt packet masks to missing media packets.
   int num_mask_bits = InsertZerosInPacketMasks(media_packets, num_fec_packets);
   if (num_mask_bits < 0) {
-    RTC_LOG(LS_INFO) << "Due to sequence number gaps, cannot protect media "
-                        "packets with a single block of FEC packets.";
-    fec_packets->clear();
     return -1;
   }
   packet_mask_size_ = internal::PacketMaskSize(num_mask_bits);
@@ -417,7 +413,7 @@ void ForwardErrorCorrection::InsertFecPacket(
 
   // TODO(brandtr): Update here when we support multistream protection.
   if (fec_packet->protected_ssrc != protected_media_ssrc_) {
-    RTC_LOG(LS_INFO)
+    LOG(LS_INFO)
         << "Received FEC packet is protecting an unknown media SSRC; dropping.";
     return;
   }
@@ -443,7 +439,7 @@ void ForwardErrorCorrection::InsertFecPacket(
 
   if (fec_packet->protected_packets.empty()) {
     // All-zero packet mask; we can discard this FEC packet.
-    RTC_LOG(LS_WARNING) << "Received FEC packet has an all-zero packet mask.";
+    LOG(LS_WARNING) << "Received FEC packet has an all-zero packet mask.";
   } else {
     AssignRecoveredPackets(recovered_packets, fec_packet.get());
     // TODO(holmer): Consider replacing this with a binary search for the right
@@ -529,7 +525,7 @@ bool ForwardErrorCorrection::StartPacketRecovery(
     RecoveredPacket* recovered_packet) {
   // Sanity check packet length.
   if (fec_packet.pkt->length < fec_packet.fec_header_size) {
-    RTC_LOG(LS_WARNING)
+    LOG(LS_WARNING)
         << "The FEC packet is truncated: it does not contain enough room "
         << "for its own header.";
     return false;
@@ -547,7 +543,7 @@ bool ForwardErrorCorrection::StartPacketRecovery(
   if (fec_packet.protection_length >
       std::min(sizeof(recovered_packet->pkt->data) - kRtpHeaderSize,
                sizeof(fec_packet.pkt->data) - fec_packet.fec_header_size)) {
-    RTC_LOG(LS_WARNING) << "Incorrect protection length, dropping FEC packet.";
+    LOG(LS_WARNING) << "Incorrect protection length, dropping FEC packet.";
     return false;
   }
   memcpy(&recovered_packet->pkt->data[kRtpHeaderSize],
@@ -568,8 +564,8 @@ bool ForwardErrorCorrection::FinishPacketRecovery(
       kRtpHeaderSize;
   if (recovered_packet->pkt->length >
       sizeof(recovered_packet->pkt->data) - kRtpHeaderSize) {
-    RTC_LOG(LS_WARNING) << "The recovered packet had a length larger than a "
-                        << "typical IP packet, and is thus dropped.";
+    LOG(LS_WARNING) << "The recovered packet had a length larger than a "
+                    << "typical IP packet, and is thus dropped.";
     return false;
   }
   // Set the SN field.
@@ -654,7 +650,7 @@ void ForwardErrorCorrection::AttemptRecovery(
         continue;
       }
 
-      auto* recovered_packet_ptr = recovered_packet.get();
+      auto recovered_packet_ptr = recovered_packet.get();
       // Add recovered packet to the list of recovered packets and update any
       // FEC packets covering this packet with a pointer to the data.
       // TODO(holmer): Consider replacing this with a binary search for the
@@ -726,9 +722,9 @@ void ForwardErrorCorrection::DecodeFec(const ReceivedPacket& received_packet,
       if (seq_num_diff > max_media_packets) {
         // A big gap in sequence numbers. The old recovered packets
         // are now useless, so it's safe to do a reset.
-        RTC_LOG(LS_INFO) << "Big gap in media/ULPFEC sequence numbers. No need "
-                            "to keep the old packets in the FEC buffers, thus "
-                            "resetting them.";
+        LOG(LS_INFO) << "Big gap in media/ULPFEC sequence numbers. No need "
+                        "to keep the old packets in the FEC buffers, thus "
+                        "resetting them.";
         ResetState(recovered_packets);
       }
     }

@@ -26,7 +26,7 @@ import org.junit.runner.RunWith;
 public class Camera1CapturerUsingTextureTest {
   static final String TAG = "Camera1CapturerUsingTextureTest";
 
-  private static class TestObjectFactory extends CameraVideoCapturerTestFixtures.TestObjectFactory {
+  private class TestObjectFactory extends CameraVideoCapturerTestFixtures.TestObjectFactory {
     @Override
     public CameraEnumerator getCameraEnumerator() {
       return new Camera1Enumerator();
@@ -54,6 +54,9 @@ public class Camera1CapturerUsingTextureTest {
 
   @Before
   public void setUp() {
+    // Enable VideoFrame capture.
+    PeerConnectionFactory.initializeFieldTrials(PeerConnectionFactory.VIDEO_FRAME_EMIT_TRIAL + "/"
+        + PeerConnectionFactory.TRIAL_ENABLED + "/");
     fixtures = new CameraVideoCapturerTestFixtures(new TestObjectFactory());
   }
 
@@ -116,6 +119,12 @@ public class Camera1CapturerUsingTextureTest {
     fixtures.cameraEventsInvoked();
   }
 
+  @Test
+  @MediumTest
+  public void testUpdateMediaRecorder() throws InterruptedException, IOException {
+    fixtures.updateMediaRecorder(false /* useSurfaceCapture */);
+  }
+
   // Test what happens when attempting to call e.g. switchCamera() after camera has been stopped.
   @Test
   @MediumTest
@@ -170,14 +179,6 @@ public class Camera1CapturerUsingTextureTest {
   @MediumTest
   public void testScaleCameraOutput() throws InterruptedException {
     fixtures.scaleCameraOutput();
-  }
-
-  // This test that frames forwarded to a renderer is cropped to a new orientation if
-  // adaptOutputFormat is called in such a way. This test both Java and C++ parts of of the stack.
-  @Test
-  @MediumTest
-  public void testCropCameraOutput() throws InterruptedException {
-    fixtures.cropCameraOutput();
   }
 
   // This test that an error is reported if the camera is already opened

@@ -23,7 +23,7 @@ static CGFloat const kLocalVideoViewSize = 120;
 static CGFloat const kLocalVideoViewPadding = 8;
 static CGFloat const kStatusBarHeight = 20;
 
-@interface ARDVideoCallView () <RTCVideoViewDelegate>
+@interface ARDVideoCallView () <RTCEAGLVideoViewDelegate>
 @end
 
 @implementation ARDVideoCallView {
@@ -173,10 +173,10 @@ static CGFloat const kStatusBarHeight = 20;
       CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
 }
 
-#pragma mark - RTCVideoViewDelegate
+#pragma mark - RTCEAGLVideoViewDelegate
 
-- (void)videoView:(id<RTCVideoRenderer>)videoView didChangeVideoSize:(CGSize)size {
-  if (videoView == _remoteVideoView) {
+- (void)videoView:(RTCEAGLVideoView*)videoView didChangeVideoSize:(CGSize)size {
+ if (videoView == _remoteVideoView) {
     _remoteVideoSize = size;
   }
   [self setNeedsLayout];

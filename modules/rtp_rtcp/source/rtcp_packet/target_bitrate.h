@@ -11,10 +11,9 @@
 #ifndef MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_TARGET_BITRATE_H_
 #define MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_TARGET_BITRATE_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include <vector>
+
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {

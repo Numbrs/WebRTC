@@ -17,26 +17,20 @@
 
 RTC_PUSH_IGNORING_WUNDEF()
 #include "opus.h"
-#include "opus_multistream.h"
 RTC_POP_IGNORING_WUNDEF()
 
 struct WebRtcOpusEncInst {
-  union {
-    OpusEncoder* encoder;
-    OpusMSEncoder* multistream_encoder;
-  } encoder;
+  OpusEncoder* encoder;
   size_t channels;
   int in_dtx_mode;
 };
 
 struct WebRtcOpusDecInst {
-  union {
-    OpusDecoder* decoder;
-    OpusMSDecoder* multistream_decoder;
-  } decoder;
+  OpusDecoder* decoder;
   int prev_decoded_samples;
   size_t channels;
   int in_dtx_mode;
 };
+
 
 #endif  // MODULES_AUDIO_CODING_CODECS_OPUS_OPUS_INST_H_

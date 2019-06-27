@@ -10,10 +10,8 @@
 
 package org.webrtc;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.webrtc.NetworkMonitorAutoDetect.ConnectionType;
 import static org.webrtc.NetworkMonitorAutoDetect.ConnectivityManagerDelegate;
@@ -30,7 +28,6 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.annotation.Nullable;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.annotation.UiThreadTest;
 import android.support.test.filters.MediumTest;
@@ -46,7 +43,7 @@ import org.junit.runner.RunWith;
  * Tests for org.webrtc.NetworkMonitor.
  *
  * TODO(deadbeef): These tests don't cover the interaction between
- * NetworkManager.java and androidnetworkmonitor.cc, which is how this
+ * NetworkManager.java and androidnetworkmonitor_jni.cc, which is how this
  * class is used in practice in WebRTC.
  */
 @SuppressLint("NewApi")
@@ -58,7 +55,7 @@ public class NetworkMonitorTest {
    * Listens for alerts fired by the NetworkMonitor when network status changes.
    */
   private static class NetworkMonitorTestObserver implements NetworkMonitor.NetworkObserver {
-    private boolean receivedNotification;
+    private boolean receivedNotification = false;
 
     @Override
     public void onConnectionTypeChanged(ConnectionType connectionType) {
@@ -81,13 +78,10 @@ public class NetworkMonitorTest {
     private boolean activeNetworkExists;
     private int networkType;
     private int networkSubtype;
-    private int underlyingNetworkTypeForVpn;
-    private int underlyingNetworkSubtypeForVpn;
 
     @Override
     public NetworkState getNetworkState() {
-      return new NetworkState(activeNetworkExists, networkType, networkSubtype,
-          underlyingNetworkTypeForVpn, underlyingNetworkSubtypeForVpn);
+      return new NetworkState(activeNetworkExists, networkType, networkSubtype);
     }
 
     // Dummy implementations to avoid NullPointerExceptions in default implementations:
@@ -104,7 +98,7 @@ public class NetworkMonitorTest {
 
     @Override
     public NetworkState getNetworkState(Network network) {
-      return new NetworkState(false, -1, -1, -1, -1);
+      return new NetworkState(false, -1, -1);
     }
 
     public void setActiveNetworkExists(boolean networkExists) {
@@ -117,14 +111,6 @@ public class NetworkMonitorTest {
 
     public void setNetworkSubtype(int networkSubtype) {
       this.networkSubtype = networkSubtype;
-    }
-
-    public void setUnderlyingNetworkType(int underlyingNetworkTypeForVpn) {
-      this.underlyingNetworkTypeForVpn = underlyingNetworkTypeForVpn;
-    }
-
-    public void setUnderlyingNetworkSubype(int underlyingNetworkSubtypeForVpn) {
-      this.underlyingNetworkSubtypeForVpn = underlyingNetworkSubtypeForVpn;
     }
   }
 
@@ -159,7 +145,7 @@ public class NetworkMonitorTest {
   }
 
   private static final Object lock = new Object();
-  private static @Nullable Handler uiThreadHandler;
+  private static Handler uiThreadHandler = null;
 
   private NetworkMonitorAutoDetect receiver;
   private MockConnectivityManagerDelegate connectivityDelegate;
@@ -167,11 +153,10 @@ public class NetworkMonitorTest {
 
   private static Handler getUiThreadHandler() {
     synchronized (lock) {
-      Handler handler = uiThreadHandler;
-      if (handler != null) {
-        return handler;
+      if (uiThreadHandler == null) {
+        uiThreadHandler = new Handler(Looper.getMainLooper());
       }
-      return uiThreadHandler = new Handler(Looper.getMainLooper());
+      return uiThreadHandler;
     }
   }
 
@@ -180,7 +165,9 @@ public class NetworkMonitorTest {
    */
   private void createTestMonitor() {
     Context context = InstrumentationRegistry.getTargetContext();
-    receiver = NetworkMonitor.createAndSetAutoDetectForTest(context);
+    NetworkMonitor.resetInstanceForTests();
+    NetworkMonitor.createAutoDetectorForTest();
+    receiver = NetworkMonitor.getAutoDetectorForTest();
     assertNotNull(receiver);
 
     connectivityDelegate = new MockConnectivityManagerDelegate();
@@ -194,7 +181,7 @@ public class NetworkMonitorTest {
 
   private NetworkMonitorAutoDetect.ConnectionType getCurrentConnectionType() {
     final NetworkMonitorAutoDetect.NetworkState networkState = receiver.getCurrentNetworkState();
-    return NetworkMonitorAutoDetect.getConnectionType(networkState);
+    return receiver.getConnectionType(networkState);
   }
 
   @Before
@@ -300,21 +287,5 @@ public class NetworkMonitorTest {
     NetworkMonitorAutoDetect ncn =
         new NetworkMonitorAutoDetect(observer, InstrumentationRegistry.getTargetContext());
     ncn.getDefaultNetId();
-  }
-
-  /**
-   * Tests startMonitoring and stopMonitoring correctly set the autoDetect and number of observers.
-   */
-  @Test
-  @SmallTest
-  public void testStartStopMonitoring() {
-    NetworkMonitor networkMonitor = NetworkMonitor.getInstance();
-    Context context = ContextUtils.getApplicationContext();
-    networkMonitor.startMonitoring(context);
-    assertEquals(1, networkMonitor.getNumObservers());
-    assertNotNull(networkMonitor.getNetworkMonitorAutoDetect());
-    networkMonitor.stopMonitoring();
-    assertEquals(0, networkMonitor.getNumObservers());
-    assertNull(networkMonitor.getNetworkMonitorAutoDetect());
   }
 }

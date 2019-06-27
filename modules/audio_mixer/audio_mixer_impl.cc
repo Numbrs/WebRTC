@@ -10,17 +10,15 @@
 
 #include "modules/audio_mixer/audio_mixer_impl.h"
 
-#include <stdint.h>
 #include <algorithm>
+#include <functional>
 #include <iterator>
-#include <type_traits>
 #include <utility>
 
 #include "modules/audio_mixer/audio_frame_manipulator.h"
 #include "modules/audio_mixer/default_output_rate_calculator.h"
-#include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/ref_counted_object.h"
+#include "rtc_base/refcountedobject.h"
 
 namespace webrtc {
 namespace {
@@ -90,6 +88,18 @@ AudioMixerImpl::SourceStatusList::const_iterator FindSourceInList(
         return p->audio_source == audio_source;
       });
 }
+
+// TODO(aleloi): remove non-const version when WEBRTC only supports modern STL.
+AudioMixerImpl::SourceStatusList::iterator FindSourceInList(
+    AudioMixerImpl::Source const* audio_source,
+    AudioMixerImpl::SourceStatusList* audio_source_list) {
+  return std::find_if(
+      audio_source_list->begin(), audio_source_list->end(),
+      [audio_source](const std::unique_ptr<AudioMixerImpl::SourceStatus>& p) {
+        return p->audio_source == audio_source;
+      });
+}
+
 }  // namespace
 
 AudioMixerImpl::AudioMixerImpl(
@@ -119,7 +129,7 @@ rtc::scoped_refptr<AudioMixerImpl> AudioMixerImpl::Create(
 
 void AudioMixerImpl::Mix(size_t number_of_channels,
                          AudioFrame* audio_frame_for_mixing) {
-  RTC_DCHECK(number_of_channels >= 1);
+  RTC_DCHECK(number_of_channels == 1 || number_of_channels == 2);
   RTC_DCHECK_RUNS_SERIALIZED(&race_checker_);
 
   CalculateOutputFrequency();
@@ -187,7 +197,7 @@ AudioFrameList AudioMixerImpl::GetAudioFromSources() {
             OutputFrequency(), &source_and_status->audio_frame);
 
     if (audio_frame_info == Source::AudioFrameInfo::kError) {
-      RTC_LOG_F(LS_WARNING) << "failed to GetAudioFrameWithInfo() from source";
+      LOG_F(LS_WARNING) << "failed to GetAudioFrameWithInfo() from source";
       continue;
     }
     audio_source_mixing_data_list.emplace_back(
@@ -233,7 +243,7 @@ bool AudioMixerImpl::GetAudioSourceMixabilityStatusForTest(
     return (*iter)->is_mixed;
   }
 
-  RTC_LOG(LS_ERROR) << "Audio source unknown";
+  LOG(LS_ERROR) << "Audio source unknown";
   return false;
 }
 }  // namespace webrtc

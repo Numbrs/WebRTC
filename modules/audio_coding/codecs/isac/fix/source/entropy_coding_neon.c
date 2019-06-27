@@ -14,11 +14,12 @@
  * generic platforms.
  */
 
+#include "entropy_coding.h"
+
 #include <arm_neon.h>
 #include <stddef.h>
 
-#include "modules/audio_coding/codecs/isac/fix/source/entropy_coding.h"
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "signal_processing_library.h"
 #include "rtc_base/checks.h"
 
 void WebRtcIsacfix_MatrixProduct1Neon(const int16_t matrix0[],

@@ -15,20 +15,21 @@
 
 namespace webrtc {
 
-int32_t AudioDeviceIOS::ActiveAudioLayer(AudioDeviceModule::AudioLayer& audioLayer) const {
+int32_t AudioDeviceIOS::ActiveAudioLayer(
+    AudioDeviceModule::AudioLayer& audioLayer) const {
   audioLayer = AudioDeviceModule::kPlatformDefaultAudio;
   return 0;
 }
 
 int16_t AudioDeviceIOS::PlayoutDevices() {
   // TODO(henrika): improve.
-  RTC_LOG_F(LS_WARNING) << "Not implemented";
+  LOG_F(LS_WARNING) << "Not implemented";
   return (int16_t)1;
 }
 
 int16_t AudioDeviceIOS::RecordingDevices() {
   // TODO(henrika): improve.
-  RTC_LOG_F(LS_WARNING) << "Not implemented";
+  LOG_F(LS_WARNING) << "Not implemented";
   return (int16_t)1;
 }
 
@@ -81,7 +82,7 @@ int32_t AudioDeviceIOS::SpeakerMute(bool& enabled) const {
 }
 
 int32_t AudioDeviceIOS::SetPlayoutDevice(uint16_t index) {
-  RTC_LOG_F(LS_WARNING) << "Not implemented";
+  LOG_F(LS_WARNING) << "Not implemented";
   return 0;
 }
 
@@ -119,7 +120,7 @@ int32_t AudioDeviceIOS::StereoRecordingIsAvailable(bool& available) {
 }
 
 int32_t AudioDeviceIOS::SetStereoRecording(bool enable) {
-  RTC_LOG_F(LS_WARNING) << "Not implemented";
+  LOG_F(LS_WARNING) << "Not implemented";
   return -1;
 }
 
@@ -134,13 +135,24 @@ int32_t AudioDeviceIOS::StereoPlayoutIsAvailable(bool& available) {
 }
 
 int32_t AudioDeviceIOS::SetStereoPlayout(bool enable) {
-  RTC_LOG_F(LS_WARNING) << "Not implemented";
+  LOG_F(LS_WARNING) << "Not implemented";
   return -1;
 }
 
 int32_t AudioDeviceIOS::StereoPlayout(bool& enabled) const {
   enabled = false;
   return 0;
+}
+
+int32_t AudioDeviceIOS::SetAGC(bool enable) {
+  if (enable) {
+    RTC_NOTREACHED() << "Should never be called";
+  }
+  return -1;
+}
+
+bool AudioDeviceIOS::AGC() const {
+  return false;
 }
 
 int32_t AudioDeviceIOS::MicrophoneVolumeIsAvailable(bool& available) {
@@ -183,11 +195,12 @@ int32_t AudioDeviceIOS::RecordingDeviceName(uint16_t index,
 }
 
 int32_t AudioDeviceIOS::SetRecordingDevice(uint16_t index) {
-  RTC_LOG_F(LS_WARNING) << "Not implemented";
+  LOG_F(LS_WARNING) << "Not implemented";
   return 0;
 }
 
-int32_t AudioDeviceIOS::SetRecordingDevice(AudioDeviceModule::WindowsDeviceType) {
+int32_t AudioDeviceIOS::SetRecordingDevice(
+    AudioDeviceModule::WindowsDeviceType) {
   RTC_NOTREACHED() << "Not implemented";
   return -1;
 }

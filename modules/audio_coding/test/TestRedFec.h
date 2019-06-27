@@ -14,31 +14,27 @@
 #include <memory>
 #include <string>
 
-#include "api/audio_codecs/audio_decoder_factory.h"
-#include "api/audio_codecs/audio_encoder_factory.h"
-#include "common_audio/vad/include/vad.h"
+#include "modules/audio_coding/test/ACMTest.h"
 #include "modules/audio_coding/test/Channel.h"
 #include "modules/audio_coding/test/PCMFile.h"
 
 namespace webrtc {
 
-class TestRedFec {
+class TestRedFec : public ACMTest {
  public:
   explicit TestRedFec();
   ~TestRedFec();
 
   void Perform();
-
  private:
-  void RegisterSendCodec(const std::unique_ptr<AudioCodingModule>& acm,
-                         const SdpAudioFormat& codec_format,
-                         absl::optional<Vad::Aggressiveness> vad_mode,
-                         bool use_red);
+  // The default value of '-1' indicates that the registration is based only on
+  // codec name and a sampling frequency matching is not required. This is
+  // useful for codecs which support several sampling frequency.
+  int16_t RegisterSendCodec(char side, const char* codecName,
+                            int32_t sampFreqHz = -1);
   void Run();
   void OpenOutFile(int16_t testNumber);
-
-  const rtc::scoped_refptr<AudioEncoderFactory> encoder_factory_;
-  const rtc::scoped_refptr<AudioDecoderFactory> decoder_factory_;
+  int32_t SetVAD(bool enableDTX, bool enableVAD, ACMVADMode vadMode);
   std::unique_ptr<AudioCodingModule> _acmA;
   std::unique_ptr<AudioCodingModule> _acmB;
 

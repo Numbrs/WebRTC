@@ -19,17 +19,18 @@
 #ifndef MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_SMOOTH_H_
 #define MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_SMOOTH_H_
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
+#include "defines.h"
 
 /*----------------------------------------------------------------*
  * find the smoothed output data
  *---------------------------------------------------------------*/
 
-void WebRtcIlbcfix_Smooth(int16_t* odata,   /* (o) smoothed output */
-                          int16_t* current, /* (i) the un enhanced residual for
-                                                     this block */
-                          int16_t* surround /* (i) The approximation from the
-                                                     surrounding sequences */
+void WebRtcIlbcfix_Smooth(
+    int16_t *odata,   /* (o) smoothed output */
+    int16_t *current,  /* (i) the un enhanced residual for
+                                this block */
+    int16_t *surround  /* (i) The approximation from the
+                                surrounding sequences */
                           );
 
 #endif

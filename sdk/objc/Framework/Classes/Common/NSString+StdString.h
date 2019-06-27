@@ -8,4 +8,19 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#import "helpers/NSString+StdString.h"
+#import <Foundation/Foundation.h>
+
+#include <string>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface NSString (StdString)
+
+@property(nonatomic, readonly) std::string stdString;
+
++ (std::string)stdStringForString:(NSString *)nsString;
++ (NSString *)stringForStdString:(const std::string&)stdString;
+
+@end
+
+NS_ASSUME_NONNULL_END

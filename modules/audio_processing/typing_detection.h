@@ -11,11 +11,12 @@
 #ifndef MODULES_AUDIO_PROCESSING_TYPING_DETECTION_H_
 #define MODULES_AUDIO_PROCESSING_TYPING_DETECTION_H_
 
-#include "rtc_base/system/rtc_export.h"
+#include "modules/include/module_common_types.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
-class RTC_EXPORT TypingDetection {
+class TypingDetection {
  public:
   TypingDetection();
   virtual ~TypingDetection();

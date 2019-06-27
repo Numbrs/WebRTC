@@ -17,10 +17,13 @@
 
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_format.h"
-#include "api/scoped_refptr.h"
+#include "common_types.h"  // NOLINT(build/include)  // NULL
 #include "modules/audio_coding/codecs/cng/webrtc_cng.h"
+#include "modules/audio_coding/neteq/audio_decoder_impl.h"
 #include "modules/audio_coding/neteq/packet.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "rtc_base/scoped_ref_ptr.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -40,12 +43,15 @@ class DecoderDatabase {
   class DecoderInfo {
    public:
     DecoderInfo(const SdpAudioFormat& audio_format,
-                absl::optional<AudioCodecPairId> codec_pair_id,
                 AudioDecoderFactory* factory,
                 const std::string& codec_name);
     explicit DecoderInfo(const SdpAudioFormat& audio_format,
-                         absl::optional<AudioCodecPairId> codec_pair_id,
                          AudioDecoderFactory* factory = nullptr);
+    explicit DecoderInfo(NetEqDecoder ct,
+                         AudioDecoderFactory* factory = nullptr);
+    DecoderInfo(const SdpAudioFormat& audio_format,
+                AudioDecoder* ext_dec,
+                const std::string& codec_name);
     DecoderInfo(DecoderInfo&&);
     ~DecoderInfo();
 
@@ -75,10 +81,14 @@ class DecoderDatabase {
     }
 
     // Returns true if the decoder's format is DTMF.
-    bool IsDtmf() const { return subtype_ == Subtype::kDtmf; }
+    bool IsDtmf() const {
+      return subtype_ == Subtype::kDtmf;
+    }
 
     // Returns true if the decoder's format is RED.
-    bool IsRed() const { return subtype_ == Subtype::kRed; }
+    bool IsRed() const {
+      return subtype_ == Subtype::kRed;
+    }
 
     // Returns true if the decoder's format is named |name|.
     bool IsType(const char* name) const;
@@ -94,18 +104,25 @@ class DecoderDatabase {
     const std::string name_;
 
     const SdpAudioFormat audio_format_;
-    const absl::optional<AudioCodecPairId> codec_pair_id_;
     AudioDecoderFactory* const factory_;
     mutable std::unique_ptr<AudioDecoder> decoder_;
 
+    // Set iff this is an external decoder.
+    AudioDecoder* const external_decoder_;
+
     // Set iff this is a comfort noise decoder.
     struct CngDecoder {
-      static absl::optional<CngDecoder> Create(const SdpAudioFormat& format);
+      static rtc::Optional<CngDecoder> Create(const SdpAudioFormat& format);
       int sample_rate_hz;
     };
-    const absl::optional<CngDecoder> cng_decoder_;
+    const rtc::Optional<CngDecoder> cng_decoder_;
 
-    enum class Subtype : int8_t { kNormal, kComfortNoise, kDtmf, kRed };
+    enum class Subtype : int8_t {
+      kNormal,
+      kComfortNoise,
+      kDtmf,
+      kRed
+    };
 
     static Subtype SubtypeFromFormat(const SdpAudioFormat& format);
 
@@ -117,8 +134,7 @@ class DecoderDatabase {
   static const uint8_t kRtpPayloadTypeError = 0xFF;
 
   DecoderDatabase(
-      const rtc::scoped_refptr<AudioDecoderFactory>& decoder_factory,
-      absl::optional<AudioCodecPairId> codec_pair_id);
+      const rtc::scoped_refptr<AudioDecoderFactory>& decoder_factory);
 
   virtual ~DecoderDatabase();
 
@@ -138,10 +154,25 @@ class DecoderDatabase {
   virtual std::vector<int> SetCodecs(
       const std::map<int, SdpAudioFormat>& codecs);
 
+  // Registers |rtp_payload_type| as a decoder of type |codec_type|. The |name|
+  // is only used to populate the name field in the DecoderInfo struct in the
+  // database, and can be arbitrary (including empty). Returns kOK on success;
+  // otherwise an error code.
+  virtual int RegisterPayload(uint8_t rtp_payload_type,
+                              NetEqDecoder codec_type,
+                              const std::string& name);
+
   // Registers a decoder for the given payload type. Returns kOK on success;
   // otherwise an error code.
   virtual int RegisterPayload(int rtp_payload_type,
                               const SdpAudioFormat& audio_format);
+
+  // Registers an externally created AudioDecoder object, and associates it
+  // as a decoder of type |codec_type| with |rtp_payload_type|.
+  virtual int InsertExternal(uint8_t rtp_payload_type,
+                             NetEqDecoder codec_type,
+                             const std::string& codec_name,
+                             AudioDecoder* decoder);
 
   // Removes the entry for |rtp_payload_type| from the database.
   // Returns kDecoderNotFound or kOK depending on the outcome of the operation.
@@ -207,7 +238,6 @@ class DecoderDatabase {
   int active_cng_decoder_type_;
   mutable std::unique_ptr<ComfortNoiseDecoder> active_cng_decoder_;
   rtc::scoped_refptr<AudioDecoderFactory> decoder_factory_;
-  const absl::optional<AudioCodecPairId> codec_pair_id_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(DecoderDatabase);
 };

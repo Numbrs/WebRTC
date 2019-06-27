@@ -15,13 +15,9 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/fir.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/receiver_report.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/sender_report.h"
-#include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/rtcp_packet_parser.h"
 
-using ::testing::_;
-using ::testing::Invoke;
-using ::testing::MockFunction;
 using webrtc::rtcp::Bye;
 using webrtc::rtcp::CompoundPacket;
 using webrtc::rtcp::Fir;
@@ -99,18 +95,23 @@ TEST(RtcpCompoundPacketTest, BuildWithInputBuffer) {
   const size_t kReportBlockLength = 24;
   const size_t kFirLength = 20;
 
-  const size_t kBufferSize = kRrLength + kReportBlockLength + kFirLength;
-  MockFunction<void(rtc::ArrayView<const uint8_t>)> callback;
-  EXPECT_CALL(callback, Call(_))
-      .WillOnce(Invoke([&](rtc::ArrayView<const uint8_t> packet) {
-        RtcpPacketParser parser;
-        parser.Parse(packet.data(), packet.size());
-        EXPECT_EQ(1, parser.receiver_report()->num_packets());
-        EXPECT_EQ(1u, parser.receiver_report()->report_blocks().size());
-        EXPECT_EQ(1, parser.fir()->num_packets());
-      }));
+  class Verifier : public rtcp::RtcpPacket::PacketReadyCallback {
+   public:
+    void OnPacketReady(uint8_t* data, size_t length) override {
+      RtcpPacketParser parser;
+      parser.Parse(data, length);
+      EXPECT_EQ(1, parser.receiver_report()->num_packets());
+      EXPECT_EQ(1u, parser.receiver_report()->report_blocks().size());
+      EXPECT_EQ(1, parser.fir()->num_packets());
+      ++packets_created_;
+    }
 
-  EXPECT_TRUE(compound.Build(kBufferSize, callback.AsStdFunction()));
+    int packets_created_ = 0;
+  } verifier;
+  const size_t kBufferSize = kRrLength + kReportBlockLength + kFirLength;
+  uint8_t buffer[kBufferSize];
+  EXPECT_TRUE(compound.BuildExternalBuffer(buffer, kBufferSize, &verifier));
+  EXPECT_EQ(1, verifier.packets_created_);
 }
 
 TEST(RtcpCompoundPacketTest, BuildWithTooSmallBuffer_FragmentedSend) {
@@ -127,25 +128,34 @@ TEST(RtcpCompoundPacketTest, BuildWithTooSmallBuffer_FragmentedSend) {
   const size_t kRrLength = 8;
   const size_t kReportBlockLength = 24;
 
-  const size_t kBufferSize = kRrLength + kReportBlockLength;
-  MockFunction<void(rtc::ArrayView<const uint8_t>)> callback;
-  EXPECT_CALL(callback, Call(_))
-      .WillOnce(Invoke([&](rtc::ArrayView<const uint8_t> packet) {
-        RtcpPacketParser parser;
-        parser.Parse(packet.data(), packet.size());
-        EXPECT_EQ(1, parser.receiver_report()->num_packets());
-        EXPECT_EQ(1U, parser.receiver_report()->report_blocks().size());
-        EXPECT_EQ(0, parser.fir()->num_packets());
-      }))
-      .WillOnce(Invoke([&](rtc::ArrayView<const uint8_t> packet) {
-        RtcpPacketParser parser;
-        parser.Parse(packet.data(), packet.size());
-        EXPECT_EQ(0, parser.receiver_report()->num_packets());
-        EXPECT_EQ(0U, parser.receiver_report()->report_blocks().size());
-        EXPECT_EQ(1, parser.fir()->num_packets());
-      }));
+  class Verifier : public rtcp::RtcpPacket::PacketReadyCallback {
+   public:
+    void OnPacketReady(uint8_t* data, size_t length) override {
+      RtcpPacketParser parser;
+      parser.Parse(data, length);
+      switch (packets_created_++) {
+        case 0:
+          EXPECT_EQ(1, parser.receiver_report()->num_packets());
+          EXPECT_EQ(1U, parser.receiver_report()->report_blocks().size());
+          EXPECT_EQ(0, parser.fir()->num_packets());
+          break;
+        case 1:
+          EXPECT_EQ(0, parser.receiver_report()->num_packets());
+          EXPECT_EQ(0U, parser.receiver_report()->report_blocks().size());
+          EXPECT_EQ(1, parser.fir()->num_packets());
+          break;
+        default:
+          ADD_FAILURE() << "OnPacketReady not expected to be called "
+                        << packets_created_ << " times.";
+      }
+    }
 
-  EXPECT_TRUE(compound.Build(kBufferSize, callback.AsStdFunction()));
+    int packets_created_ = 0;
+  } verifier;
+  const size_t kBufferSize = kRrLength + kReportBlockLength;
+  uint8_t buffer[kBufferSize];
+  EXPECT_TRUE(compound.BuildExternalBuffer(buffer, kBufferSize, &verifier));
+  EXPECT_EQ(2, verifier.packets_created_);
 }
 
 }  // namespace webrtc

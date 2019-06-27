@@ -11,9 +11,7 @@
 #ifndef MODULES_AUDIO_PROCESSING_AEC3_FFT_DATA_H_
 #define MODULES_AUDIO_PROCESSING_AEC3_FFT_DATA_H_
 
-// Defines WEBRTC_ARCH_X86_FAMILY, used below.
-#include "rtc_base/system/arch.h"
-
+#include "typedefs.h"  // NOLINT(build/include)
 #if defined(WEBRTC_ARCH_X86_FAMILY)
 #include <emmintrin.h>
 #endif
@@ -42,8 +40,8 @@ struct FftData {
 
   // Computes the power spectrum of the data.
   void Spectrum(Aec3Optimization optimization,
-                rtc::ArrayView<float> power_spectrum) const {
-    RTC_DCHECK_EQ(kFftLengthBy2Plus1, power_spectrum.size());
+                std::array<float, kFftLengthBy2Plus1>* power_spectrum) const {
+    RTC_DCHECK(power_spectrum);
     switch (optimization) {
 #if defined(WEBRTC_ARCH_X86_FAMILY)
       case Aec3Optimization::kSse2: {
@@ -55,14 +53,16 @@ struct FftData {
           const __m128 ii = _mm_mul_ps(i, i);
           const __m128 rr = _mm_mul_ps(r, r);
           const __m128 rrii = _mm_add_ps(rr, ii);
-          _mm_storeu_ps(&power_spectrum[k], rrii);
+          _mm_storeu_ps(&(*power_spectrum)[k], rrii);
         }
-        power_spectrum[kFftLengthBy2] = re[kFftLengthBy2] * re[kFftLengthBy2] +
-                                        im[kFftLengthBy2] * im[kFftLengthBy2];
+        (*power_spectrum)[kFftLengthBy2] =
+            re[kFftLengthBy2] * re[kFftLengthBy2] +
+            im[kFftLengthBy2] * im[kFftLengthBy2];
       } break;
 #endif
       default:
-        std::transform(re.begin(), re.end(), im.begin(), power_spectrum.begin(),
+        std::transform(re.begin(), re.end(), im.begin(),
+                       power_spectrum->begin(),
                        [](float a, float b) { return a * a + b * b; });
     }
   }

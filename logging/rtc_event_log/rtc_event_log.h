@@ -11,43 +11,45 @@
 #ifndef LOGGING_RTC_EVENT_LOG_RTC_EVENT_LOG_H_
 #define LOGGING_RTC_EVENT_LOG_RTC_EVENT_LOG_H_
 
-#include <stdint.h>
 #include <memory>
+#include <string>
 
-#include "api/rtc_event_log_output.h"
-#include "api/task_queue/task_queue_factory.h"
+#include "api/rtceventlogoutput.h"
 #include "logging/rtc_event_log/events/rtc_event.h"
 
 namespace webrtc {
 
-// TODO(terelius): Move this to the parser.
+class Clock;
+
 enum PacketDirection { kIncomingPacket = 0, kOutgoingPacket };
 
 class RtcEventLog {
  public:
   enum : size_t { kUnlimitedOutput = 0 };
-  enum : int64_t { kImmediateOutput = 0 };
 
-  // TODO(eladalon):  Get rid of the legacy encoding and this enum once all
-  // clients have migrated to the new format.
-  enum class EncodingType { Legacy, NewFormat };
+  // TODO(eladalon): Two stages are upcoming.
+  // 1. Extend this to actually support the new encoding.
+  // 2. Get rid of the legacy encoding, allowing us to get rid of this enum.
+  enum class EncodingType { Legacy };
 
   virtual ~RtcEventLog() {}
 
   // Factory method to create an RtcEventLog object.
   static std::unique_ptr<RtcEventLog> Create(EncodingType encoding_type);
-
-  static std::unique_ptr<RtcEventLog> Create(
-      EncodingType encoding_type,
-      TaskQueueFactory* task_queue_factory);
+  // TODO(nisse): webrtc::Clock is deprecated. Delete this method and
+  // above forward declaration of Clock when
+  // webrtc/system_wrappers/include/clock.h is deleted.
+  static std::unique_ptr<RtcEventLog> Create(const Clock* clock,
+                                             EncodingType encoding_type) {
+    return Create(encoding_type);
+  }
 
   // Create an RtcEventLog object that does nothing.
   static std::unique_ptr<RtcEventLog> CreateNull();
 
   // Starts logging to a given output. The output might be limited in size,
   // and may close itself once it has reached the maximum size.
-  virtual bool StartLogging(std::unique_ptr<RtcEventLogOutput> output,
-                            int64_t output_period_ms) = 0;
+  virtual bool StartLogging(std::unique_ptr<RtcEventLogOutput> output) = 0;
 
   // Stops logging to file and waits until the file has been closed, after
   // which it would be permissible to read and/or modify it.
@@ -60,8 +62,9 @@ class RtcEventLog {
 // No-op implementation is used if flag is not set, or in tests.
 class RtcEventLogNullImpl : public RtcEventLog {
  public:
-  bool StartLogging(std::unique_ptr<RtcEventLogOutput> output,
-                    int64_t output_period_ms) override;
+  bool StartLogging(std::unique_ptr<RtcEventLogOutput> output) override {
+    return false;
+  }
   void StopLogging() override {}
   void Log(std::unique_ptr<RtcEvent> event) override {}
 };

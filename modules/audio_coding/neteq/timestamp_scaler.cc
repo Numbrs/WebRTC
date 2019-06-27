@@ -10,9 +10,7 @@
 
 #include "modules/audio_coding/neteq/timestamp_scaler.h"
 
-#include "api/audio_codecs/audio_format.h"
 #include "modules/audio_coding/neteq/decoder_database.h"
-#include "rtc_base/checks.h"
 
 namespace webrtc {
 
@@ -61,7 +59,7 @@ uint32_t TimestampScaler::ToInternal(uint32_t external_timestamp,
       first_packet_received_ = true;
     }
     const int64_t external_diff = int64_t{external_timestamp} - external_ref_;
-    RTC_DCHECK_GT(denominator_, 0);
+    assert(denominator_ > 0);  // Should not be possible.
     external_ref_ = external_timestamp;
     internal_ref_ += (external_diff * numerator_) / denominator_;
     return internal_ref_;
@@ -71,13 +69,14 @@ uint32_t TimestampScaler::ToInternal(uint32_t external_timestamp,
   }
 }
 
+
 uint32_t TimestampScaler::ToExternal(uint32_t internal_timestamp) const {
   if (!first_packet_received_ || (numerator_ == denominator_)) {
     // Not initialized, or scale factor is 1.
     return internal_timestamp;
   } else {
     const int64_t internal_diff = int64_t{internal_timestamp} - internal_ref_;
-    RTC_DCHECK_GT(numerator_, 0);
+    assert(numerator_ > 0);  // Should not be possible.
     // Do not update references in this method.
     // Switch |denominator_| and |numerator_| to convert the other way.
     return external_ref_ + (internal_diff * denominator_) / numerator_;

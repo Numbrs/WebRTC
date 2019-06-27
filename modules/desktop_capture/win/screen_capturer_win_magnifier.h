@@ -13,16 +13,17 @@
 
 #include <memory>
 
+#include <windows.h>
 #include <magnification.h>
 #include <wincodec.h>
-#include <windows.h>
 
 #include "modules/desktop_capture/desktop_capturer.h"
 #include "modules/desktop_capture/screen_capture_frame_queue.h"
 #include "modules/desktop_capture/screen_capturer_helper.h"
 #include "modules/desktop_capture/shared_desktop_frame.h"
 #include "modules/desktop_capture/win/scoped_thread_desktop.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "system_wrappers/include/atomic32.h"
 
 namespace webrtc {
 
@@ -97,6 +98,8 @@ class ScreenCapturerWinMagnifier : public DesktopCapturer {
 
   // Makes sure the current frame exists and matches |size|.
   void CreateCurrentFrameIfNecessary(const DesktopSize& size);
+
+  static Atomic32 tls_index_;
 
   Callback* callback_ = nullptr;
   std::unique_ptr<SharedMemoryFactory> shared_memory_factory_;

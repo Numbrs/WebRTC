@@ -10,8 +10,6 @@
 
 #import <Foundation/Foundation.h>
 
-#import <WebRTC/RTCVideoCodecInfo.h>
-
 NS_ASSUME_NONNULL_BEGIN
 
 /**
@@ -53,12 +51,12 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * Returns array of available video codecs.
  */
-- (NSArray<RTCVideoCodecInfo *> *)availableVideoCodecs;
+- (NSArray<NSString *> *)availableVideoCodecs;
 
 /**
  * Returns current video codec setting from store if present or default (H264) otherwise.
  */
-- (RTCVideoCodecInfo *)currentVideoCodecSettingFromStore;
+- (NSString *)currentVideoCodecSettingFromStore;
 
 /**
  * Stores the provided video codec setting into the store.
@@ -68,7 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param video codec settings the string to be stored.
  * @return YES/NO depending on success.
  */
-- (BOOL)storeVideoCodecSetting:(RTCVideoCodecInfo *)videoCodec;
+- (BOOL)storeVideoCodecSetting:(NSString *)videoCodec;
 
 /**
  * Returns current max bitrate setting from store if present.
@@ -105,6 +103,19 @@ NS_ASSUME_NONNULL_BEGIN
  * @param setting the boolean value to be stored.
  */
 - (void)storeCreateAecDumpSetting:(BOOL)createAecDump;
+
+/**
+ * Returns current setting whether to use level controller from store if present or default (NO)
+ * otherwise.
+ */
+- (BOOL)currentUseLevelControllerSettingFromStore;
+
+/**
+ * Stores the provided use level controller setting into the store.
+ *
+ * @param setting the boolean value to be stored.
+ */
+- (void)storeUseLevelControllerSetting:(BOOL)useLevelController;
 
 /**
  * Returns current setting whether to use manual audio config from store if present or default (YES)

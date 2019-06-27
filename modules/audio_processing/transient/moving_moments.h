@@ -33,10 +33,8 @@ class MovingMoments {
 
   // Calculates the new values using |in|. Results will be in the out buffers.
   // |first| and |second| must be allocated with at least |in_length|.
-  void CalculateMoments(const float* in,
-                        size_t in_length,
-                        float* first,
-                        float* second);
+  void CalculateMoments(const float* in, size_t in_length,
+                        float* first, float* second);
 
  private:
   size_t length_;
@@ -49,5 +47,6 @@ class MovingMoments {
 };
 
 }  // namespace webrtc
+
 
 #endif  // MODULES_AUDIO_PROCESSING_TRANSIENT_MOVING_MOMENTS_H_

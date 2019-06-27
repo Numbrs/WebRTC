@@ -18,35 +18,39 @@
 #include "modules/audio_processing/echo_detector/mean_variance_estimator.h"
 #include "modules/audio_processing/echo_detector/moving_max.h"
 #include "modules/audio_processing/echo_detector/normalized_covariance_estimator.h"
-#include "modules/audio_processing/include/audio_processing.h"
 
 namespace webrtc {
 
 class ApmDataDumper;
 class AudioBuffer;
+class EchoDetector;
 
-class ResidualEchoDetector : public EchoDetector {
+class ResidualEchoDetector {
  public:
   ResidualEchoDetector();
-  ~ResidualEchoDetector() override;
+  ~ResidualEchoDetector();
 
   // This function should be called while holding the render lock.
-  void AnalyzeRenderAudio(rtc::ArrayView<const float> render_audio) override;
+  void AnalyzeRenderAudio(rtc::ArrayView<const float> render_audio);
 
   // This function should be called while holding the capture lock.
-  void AnalyzeCaptureAudio(rtc::ArrayView<const float> capture_audio) override;
+  void AnalyzeCaptureAudio(rtc::ArrayView<const float> capture_audio);
 
   // This function should be called while holding the capture lock.
-  void Initialize(int capture_sample_rate_hz,
-                  int num_capture_channels,
-                  int render_sample_rate_hz,
-                  int num_render_channels) override;
+  void Initialize();
 
   // This function is for testing purposes only.
   void SetReliabilityForTest(float value) { reliability_ = value; }
 
+  static void PackRenderAudioBuffer(AudioBuffer* audio,
+                                    std::vector<float>* packed_buffer);
+
   // This function should be called while holding the capture lock.
-  EchoDetector::Metrics GetMetrics() const override;
+  float echo_likelihood() const { return echo_likelihood_; }
+
+  float echo_likelihood_recent_max() const {
+    return recent_likelihood_max_.max();
+  }
 
  private:
   static int instance_count_;

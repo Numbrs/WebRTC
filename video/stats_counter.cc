@@ -15,7 +15,6 @@
 #include <map>
 
 #include "rtc_base/checks.h"
-#include "rtc_base/strings/string_builder.h"
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
@@ -31,12 +30,12 @@ std::string AggregatedStats::ToString() const {
 }
 
 std::string AggregatedStats::ToStringWithMultiplier(int multiplier) const {
-  rtc::StringBuilder ss;
+  std::stringstream ss;
   ss << "periodic_samples:" << num_samples << ", {";
   ss << "min:" << (min * multiplier) << ", ";
   ss << "avg:" << (average * multiplier) << ", ";
   ss << "max:" << (max * multiplier) << "}";
-  return ss.Release();
+  return ss.str();
 }
 
 // Class holding periodically computed metrics.

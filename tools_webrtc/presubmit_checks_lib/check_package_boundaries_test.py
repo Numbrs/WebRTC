@@ -12,7 +12,6 @@ import ast
 import os
 import unittest
 
-#pylint: disable=relative-import
 from check_package_boundaries import CheckPackageBoundaries
 
 

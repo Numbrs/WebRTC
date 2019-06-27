@@ -9,7 +9,6 @@
  */
 
 #include "common_audio/fir_filter.h"
-#include "common_audio/fir_filter_factory.h"
 
 #include <string.h>
 
@@ -21,18 +20,20 @@ namespace webrtc {
 namespace {
 
 static const float kCoefficients[] = {0.2f, 0.3f, 0.5f, 0.7f, 0.11f};
-static const size_t kCoefficientsLength =
-    sizeof(kCoefficients) / sizeof(kCoefficients[0]);
+static const size_t kCoefficientsLength = sizeof(kCoefficients) /
+                                       sizeof(kCoefficients[0]);
 
-static const float kInput[] = {1.f, 2.f, 3.f, 4.f, 5.f,
-                               6.f, 7.f, 8.f, 9.f, 10.f};
-static const size_t kInputLength = sizeof(kInput) / sizeof(kInput[0]);
+static const float kInput[] = {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f,
+                                      8.f, 9.f, 10.f};
+static const size_t kInputLength = sizeof(kInput) /
+                                      sizeof(kInput[0]);
 
 void VerifyOutput(const float* expected_output,
                   const float* output,
                   size_t length) {
-  EXPECT_EQ(
-      0, memcmp(expected_output, output, length * sizeof(expected_output[0])));
+  EXPECT_EQ(0, memcmp(expected_output,
+                      output,
+                      length * sizeof(expected_output[0])));
 }
 
 }  // namespace
@@ -41,7 +42,7 @@ TEST(FIRFilterTest, FilterAsIdentity) {
   const float kCoefficients[] = {1.f, 0.f, 0.f, 0.f, 0.f};
   float output[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kInputLength));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, kInputLength));
   filter->Filter(kInput, kInputLength, output);
 
   VerifyOutput(kInput, output, kInputLength);
@@ -51,7 +52,7 @@ TEST(FIRFilterTest, FilterUsedAsScalarMultiplication) {
   const float kCoefficients[] = {5.f, 0.f, 0.f, 0.f, 0.f};
   float output[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kInputLength));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, kInputLength));
   filter->Filter(kInput, kInputLength, output);
 
   EXPECT_FLOAT_EQ(5.f, output[0]);
@@ -64,7 +65,7 @@ TEST(FIRFilterTest, FilterUsedAsInputShifting) {
   const float kCoefficients[] = {0.f, 0.f, 0.f, 0.f, 1.f};
   float output[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kInputLength));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, kInputLength));
   filter->Filter(kInput, kInputLength, output);
 
   EXPECT_FLOAT_EQ(0.f, output[0]);
@@ -77,7 +78,7 @@ TEST(FIRFilterTest, FilterUsedAsInputShifting) {
 TEST(FIRFilterTest, FilterUsedAsArbitraryWeighting) {
   float output[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kInputLength));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, kInputLength));
   filter->Filter(kInput, kInputLength, output);
 
   EXPECT_FLOAT_EQ(0.2f, output[0]);
@@ -90,13 +91,13 @@ TEST(FIRFilterTest, FilterUsedAsArbitraryWeighting) {
 TEST(FIRFilterTest, FilterInLengthLesserOrEqualToCoefficientsLength) {
   float output[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, 2));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, 2));
   filter->Filter(kInput, 2, output);
 
   EXPECT_FLOAT_EQ(0.2f, output[0]);
   EXPECT_FLOAT_EQ(0.7f, output[1]);
-  filter.reset(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kCoefficientsLength));
+  filter.reset(FIRFilter::Create(
+      kCoefficients, kCoefficientsLength, kCoefficientsLength));
   filter->Filter(kInput, kCoefficientsLength, output);
 
   EXPECT_FLOAT_EQ(0.2f, output[0]);
@@ -107,7 +108,7 @@ TEST(FIRFilterTest, FilterInLengthLesserOrEqualToCoefficientsLength) {
 TEST(FIRFilterTest, MultipleFilterCalls) {
   float output[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, 3));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, 3));
   filter->Filter(kInput, 2, output);
   EXPECT_FLOAT_EQ(0.2f, output[0]);
   EXPECT_FLOAT_EQ(0.7f, output[1]);
@@ -138,29 +139,31 @@ TEST(FIRFilterTest, MultipleFilterCalls) {
 TEST(FIRFilterTest, VerifySampleBasedVsBlockBasedFiltering) {
   float output_block_based[kInputLength];
   std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kInputLength));
+      FIRFilter::Create(kCoefficients, kCoefficientsLength, kInputLength));
   filter->Filter(kInput, kInputLength, output_block_based);
 
   float output_sample_based[kInputLength];
-  filter.reset(CreateFirFilter(kCoefficients, kCoefficientsLength, 1));
+  filter.reset(FIRFilter::Create(kCoefficients, kCoefficientsLength, 1));
   for (size_t i = 0; i < kInputLength; ++i) {
     filter->Filter(&kInput[i], 1, &output_sample_based[i]);
   }
 
-  EXPECT_EQ(0, memcmp(output_sample_based, output_block_based, kInputLength));
+  EXPECT_EQ(0, memcmp(output_sample_based,
+                      output_block_based,
+                      kInputLength));
 }
 
 TEST(FIRFilterTest, SimplestHighPassFilter) {
   const float kCoefficients[] = {1.f, -1.f};
-  const size_t kCoefficientsLength =
-      sizeof(kCoefficients) / sizeof(kCoefficients[0]);
+  const size_t kCoefficientsLength = sizeof(kCoefficients) /
+                                  sizeof(kCoefficients[0]);
 
   float kConstantInput[] = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
-  const size_t kConstantInputLength =
-      sizeof(kConstantInput) / sizeof(kConstantInput[0]);
+  const size_t kConstantInputLength = sizeof(kConstantInput) /
+      sizeof(kConstantInput[0]);
 
   float output[kConstantInputLength];
-  std::unique_ptr<FIRFilter> filter(CreateFirFilter(
+  std::unique_ptr<FIRFilter> filter(FIRFilter::Create(
       kCoefficients, kCoefficientsLength, kConstantInputLength));
   filter->Filter(kConstantInput, kConstantInputLength, output);
   EXPECT_FLOAT_EQ(1.f, output[0]);
@@ -171,15 +174,15 @@ TEST(FIRFilterTest, SimplestHighPassFilter) {
 
 TEST(FIRFilterTest, SimplestLowPassFilter) {
   const float kCoefficients[] = {1.f, 1.f};
-  const size_t kCoefficientsLength =
-      sizeof(kCoefficients) / sizeof(kCoefficients[0]);
+  const size_t kCoefficientsLength = sizeof(kCoefficients) /
+                                  sizeof(kCoefficients[0]);
 
   float kHighFrequencyInput[] = {-1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f};
-  const size_t kHighFrequencyInputLength =
-      sizeof(kHighFrequencyInput) / sizeof(kHighFrequencyInput[0]);
+  const size_t kHighFrequencyInputLength = sizeof(kHighFrequencyInput) /
+                                        sizeof(kHighFrequencyInput[0]);
 
   float output[kHighFrequencyInputLength];
-  std::unique_ptr<FIRFilter> filter(CreateFirFilter(
+  std::unique_ptr<FIRFilter> filter(FIRFilter::Create(
       kCoefficients, kCoefficientsLength, kHighFrequencyInputLength));
   filter->Filter(kHighFrequencyInput, kHighFrequencyInputLength, output);
   EXPECT_FLOAT_EQ(-1.f, output[0]);
@@ -191,16 +194,16 @@ TEST(FIRFilterTest, SimplestLowPassFilter) {
 TEST(FIRFilterTest, SameOutputWhenSwapedCoefficientsAndInput) {
   float output[kCoefficientsLength];
   float output_swaped[kCoefficientsLength];
-  std::unique_ptr<FIRFilter> filter(
-      CreateFirFilter(kCoefficients, kCoefficientsLength, kCoefficientsLength));
+  std::unique_ptr<FIRFilter> filter(FIRFilter::Create(
+      kCoefficients, kCoefficientsLength, kCoefficientsLength));
   // Use kCoefficientsLength for in_length to get same-length outputs.
   filter->Filter(kInput, kCoefficientsLength, output);
 
-  filter.reset(
-      CreateFirFilter(kInput, kCoefficientsLength, kCoefficientsLength));
+  filter.reset(FIRFilter::Create(
+      kInput, kCoefficientsLength, kCoefficientsLength));
   filter->Filter(kCoefficients, kCoefficientsLength, output_swaped);
 
-  for (size_t i = 0; i < kCoefficientsLength; ++i) {
+  for (size_t i = 0 ; i < kCoefficientsLength; ++i) {
     EXPECT_FLOAT_EQ(output[i], output_swaped[i]);
   }
 }

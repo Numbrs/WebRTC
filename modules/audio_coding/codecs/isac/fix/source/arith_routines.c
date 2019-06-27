@@ -16,7 +16,7 @@
  *
  */
 
-#include "modules/audio_coding/codecs/isac/fix/source/arith_routins.h"
+#include "arith_routins.h"
 
 
 /****************************************************************************

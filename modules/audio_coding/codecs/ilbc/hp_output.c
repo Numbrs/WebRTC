@@ -16,7 +16,7 @@
 
 ******************************************************************/
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
+#include "defines.h"
 
 /*----------------------------------------------------------------*
  *  high-pass filter of output and *2 with saturation

@@ -10,22 +10,21 @@
 
 #include <memory>
 
-#include "rtc_base/async_invoker.h"
-#include "rtc_base/async_udp_socket.h"
+#include "rtc_base/asyncinvoker.h"
+#include "rtc_base/asyncudpsocket.h"
 #include "rtc_base/event.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/null_socket_server.h"
-#include "rtc_base/physical_socket_server.h"
-#include "rtc_base/socket_address.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
+#include "rtc_base/nullsocketserver.h"
+#include "rtc_base/physicalsocketserver.h"
+#include "rtc_base/sigslot.h"
+#include "rtc_base/socketaddress.h"
 #include "rtc_base/thread.h"
 
 #if defined(WEBRTC_WIN)
 #include <comdef.h>  // NOLINT
 #endif
 
-namespace rtc {
-namespace {
+using namespace rtc;
 
 // Generates a sequence of numbers (collaboratively).
 class TestGenerator {
@@ -45,6 +44,7 @@ class TestGenerator {
 
 struct TestMessage : public MessageData {
   explicit TestMessage(int v) : value(v) {}
+  virtual ~TestMessage() {}
 
   int value;
 };
@@ -52,25 +52,23 @@ struct TestMessage : public MessageData {
 // Receives on a socket and sends by posting messages.
 class SocketClient : public TestGenerator, public sigslot::has_slots<> {
  public:
-  SocketClient(AsyncSocket* socket,
-               const SocketAddress& addr,
-               Thread* post_thread,
-               MessageHandler* phandler)
+  SocketClient(AsyncSocket* socket, const SocketAddress& addr,
+               Thread* post_thread, MessageHandler* phandler)
       : socket_(AsyncUDPSocket::Create(socket, addr)),
         post_thread_(post_thread),
         post_handler_(phandler) {
     socket_->SignalReadPacket.connect(this, &SocketClient::OnPacket);
   }
 
-  ~SocketClient() override { delete socket_; }
+  ~SocketClient() {
+    delete socket_;
+  }
 
   SocketAddress address() const { return socket_->GetLocalAddress(); }
 
-  void OnPacket(AsyncPacketSocket* socket,
-                const char* buf,
-                size_t size,
+  void OnPacket(AsyncPacketSocket* socket, const char* buf, size_t size,
                 const SocketAddress& remote_addr,
-                const int64_t& packet_time_us) {
+                const PacketTime& packet_time) {
     EXPECT_EQ(size, sizeof(uint32_t));
     uint32_t prev = reinterpret_cast<const uint32_t*>(buf)[0];
     uint32_t result = Next(prev);
@@ -88,11 +86,15 @@ class SocketClient : public TestGenerator, public sigslot::has_slots<> {
 // Receives messages and sends on a socket.
 class MessageClient : public MessageHandler, public TestGenerator {
  public:
-  MessageClient(Thread* pth, Socket* socket) : socket_(socket) {}
+  MessageClient(Thread* pth, Socket* socket)
+      : socket_(socket) {
+  }
 
-  ~MessageClient() override { delete socket_; }
+  virtual ~MessageClient() {
+    delete socket_;
+  }
 
-  void OnMessage(Message* pmsg) override {
+  virtual void OnMessage(Message *pmsg) {
     TestMessage* msg = static_cast<TestMessage*>(pmsg->pdata);
     int result = Next(msg->value);
     EXPECT_GE(socket_->Send(&result, sizeof(result)), 0);
@@ -107,12 +109,17 @@ class CustomThread : public rtc::Thread {
  public:
   CustomThread()
       : Thread(std::unique_ptr<SocketServer>(new rtc::NullSocketServer())) {}
-  ~CustomThread() override { Stop(); }
+  virtual ~CustomThread() { Stop(); }
   bool Start() { return false; }
 
-  bool WrapCurrent() { return Thread::WrapCurrent(); }
-  void UnwrapCurrent() { Thread::UnwrapCurrent(); }
+  bool WrapCurrent() {
+    return Thread::WrapCurrent();
+  }
+  void UnwrapCurrent() {
+    Thread::UnwrapCurrent();
+  }
 };
+
 
 // A thread that does nothing when it runs and signals an event
 // when it is destroyed.
@@ -122,12 +129,12 @@ class SignalWhenDestroyedThread : public Thread {
       : Thread(std::unique_ptr<SocketServer>(new NullSocketServer())),
         event_(event) {}
 
-  ~SignalWhenDestroyedThread() override {
+  virtual ~SignalWhenDestroyedThread() {
     Stop();
     event_->Set();
   }
 
-  void Run() override {
+  virtual void Run() {
     // Do nothing.
   }
 
@@ -174,11 +181,7 @@ struct FunctorA {
 class FunctorB {
  public:
   explicit FunctorB(AtomicBool* flag) : flag_(flag) {}
-  void operator()() {
-    if (flag_)
-      *flag_ = true;
-  }
-
+  void operator()() { if (flag_) *flag_ = true; }
  private:
   AtomicBool* flag_;
 };
@@ -187,20 +190,6 @@ struct FunctorC {
     Thread::Current()->ProcessMessages(50);
     return 24;
   }
-};
-struct FunctorD {
- public:
-  explicit FunctorD(AtomicBool* flag) : flag_(flag) {}
-  FunctorD(FunctorD&&) = default;
-  FunctorD& operator=(FunctorD&&) = default;
-  void operator()() {
-    if (flag_)
-      *flag_ = true;
-  }
-
- private:
-  AtomicBool* flag_;
-  RTC_DISALLOW_COPY_AND_ASSIGN(FunctorD);
 };
 
 // See: https://code.google.com/p/webrtc/issues/detail?id=2409
@@ -437,7 +426,9 @@ class AsyncInvokeTest : public testing::Test {
 
  protected:
   enum { kWaitTimeout = 1000 };
-  AsyncInvokeTest() : int_value_(0), expected_thread_(nullptr) {}
+  AsyncInvokeTest()
+      : int_value_(0),
+        expected_thread_(nullptr) {}
 
   int int_value_;
   Thread* expected_thread_;
@@ -455,25 +446,13 @@ TEST_F(AsyncInvokeTest, FireAndForget) {
   thread->Stop();
 }
 
-TEST_F(AsyncInvokeTest, NonCopyableFunctor) {
-  AsyncInvoker invoker;
-  // Create and start the thread.
-  auto thread = Thread::CreateWithSocketServer();
-  thread->Start();
-  // Try calling functor.
-  AtomicBool called;
-  invoker.AsyncInvoke<void>(RTC_FROM_HERE, thread.get(), FunctorD(&called));
-  EXPECT_TRUE_WAIT(called.get(), kWaitTimeout);
-  thread->Stop();
-}
-
 TEST_F(AsyncInvokeTest, KillInvokerDuringExecute) {
   // Use these events to get in a state where the functor is in the middle of
   // executing, and then to wait for it to finish, ensuring the "EXPECT_FALSE"
   // is run.
-  Event functor_started;
-  Event functor_continue;
-  Event functor_finished;
+  Event functor_started(false, false);
+  Event functor_continue(false, false);
+  Event functor_finished(false, false);
 
   auto thread = Thread::CreateWithSocketServer();
   thread->Start();
@@ -508,7 +487,7 @@ TEST_F(AsyncInvokeTest, KillInvokerDuringExecute) {
 // destroyed. This shouldn't deadlock or crash; this second invocation should
 // just be ignored.
 TEST_F(AsyncInvokeTest, KillInvokerDuringExecuteWithReentrantInvoke) {
-  Event functor_started;
+  Event functor_started(false, false);
   // Flag used to verify that the recursively invoked task never actually runs.
   bool reentrant_functor_run = false;
 
@@ -584,7 +563,9 @@ class GuardedAsyncInvokeTest : public testing::Test {
 
  protected:
   const static int kWaitTimeout = 1000;
-  GuardedAsyncInvokeTest() : int_value_(0), expected_thread_(nullptr) {}
+  GuardedAsyncInvokeTest()
+      : int_value_(0),
+        expected_thread_(nullptr) {}
 
   int int_value_;
   Thread* expected_thread_;
@@ -626,14 +607,6 @@ TEST_F(GuardedAsyncInvokeTest, FireAndForget) {
   EXPECT_TRUE_WAIT(called.get(), kWaitTimeout);
 }
 
-TEST_F(GuardedAsyncInvokeTest, NonCopyableFunctor) {
-  GuardedAsyncInvoker invoker;
-  // Try calling functor.
-  AtomicBool called;
-  EXPECT_TRUE(invoker.AsyncInvoke<void>(RTC_FROM_HERE, FunctorD(&called)));
-  EXPECT_TRUE_WAIT(called.get(), kWaitTimeout);
-}
-
 TEST_F(GuardedAsyncInvokeTest, Flush) {
   GuardedAsyncInvoker invoker;
   AtomicBool flag1;
@@ -670,231 +643,3 @@ TEST_F(GuardedAsyncInvokeTest, FlushWithIds) {
   EXPECT_FALSE(flag1.get());
   EXPECT_TRUE(flag2.get());
 }
-
-void ThreadIsCurrent(Thread* thread, bool* result, Event* event) {
-  *result = thread->IsCurrent();
-  event->Set();
-}
-
-void WaitAndSetEvent(Event* wait_event, Event* set_event) {
-  wait_event->Wait(Event::kForever);
-  set_event->Set();
-}
-
-// A functor that keeps track of the number of copies and moves.
-class LifeCycleFunctor {
- public:
-  struct Stats {
-    size_t copy_count = 0;
-    size_t move_count = 0;
-  };
-
-  LifeCycleFunctor(Stats* stats, Event* event) : stats_(stats), event_(event) {}
-  LifeCycleFunctor(const LifeCycleFunctor& other) { *this = other; }
-  LifeCycleFunctor(LifeCycleFunctor&& other) { *this = std::move(other); }
-
-  LifeCycleFunctor& operator=(const LifeCycleFunctor& other) {
-    stats_ = other.stats_;
-    event_ = other.event_;
-    ++stats_->copy_count;
-    return *this;
-  }
-
-  LifeCycleFunctor& operator=(LifeCycleFunctor&& other) {
-    stats_ = other.stats_;
-    event_ = other.event_;
-    ++stats_->move_count;
-    return *this;
-  }
-
-  void operator()() { event_->Set(); }
-
- private:
-  Stats* stats_;
-  Event* event_;
-};
-
-// A functor that verifies the thread it was destroyed on.
-class DestructionFunctor {
- public:
-  DestructionFunctor(Thread* thread, bool* thread_was_current, Event* event)
-      : thread_(thread),
-        thread_was_current_(thread_was_current),
-        event_(event) {}
-  ~DestructionFunctor() {
-    // Only signal the event if this was the functor that was invoked to avoid
-    // the event being signaled due to the destruction of temporary/moved
-    // versions of this object.
-    if (was_invoked_) {
-      *thread_was_current_ = thread_->IsCurrent();
-      event_->Set();
-    }
-  }
-
-  void operator()() { was_invoked_ = true; }
-
- private:
-  Thread* thread_;
-  bool* thread_was_current_;
-  Event* event_;
-  bool was_invoked_ = false;
-};
-
-TEST(ThreadPostTaskTest, InvokesWithBind) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event event;
-  background_thread->PostTask(RTC_FROM_HERE, Bind(&Event::Set, &event));
-  event.Wait(Event::kForever);
-}
-
-TEST(ThreadPostTaskTest, InvokesWithLambda) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event event;
-  background_thread->PostTask(RTC_FROM_HERE, [&event] { event.Set(); });
-  event.Wait(Event::kForever);
-}
-
-TEST(ThreadPostTaskTest, InvokesWithCopiedFunctor) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  LifeCycleFunctor::Stats stats;
-  Event event;
-  LifeCycleFunctor functor(&stats, &event);
-  background_thread->PostTask(RTC_FROM_HERE, functor);
-  event.Wait(Event::kForever);
-
-  EXPECT_EQ(1u, stats.copy_count);
-  EXPECT_EQ(0u, stats.move_count);
-}
-
-TEST(ThreadPostTaskTest, InvokesWithMovedFunctor) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  LifeCycleFunctor::Stats stats;
-  Event event;
-  LifeCycleFunctor functor(&stats, &event);
-  background_thread->PostTask(RTC_FROM_HERE, std::move(functor));
-  event.Wait(Event::kForever);
-
-  EXPECT_EQ(0u, stats.copy_count);
-  EXPECT_EQ(1u, stats.move_count);
-}
-
-TEST(ThreadPostTaskTest, InvokesWithReferencedFunctorShouldCopy) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  LifeCycleFunctor::Stats stats;
-  Event event;
-  LifeCycleFunctor functor(&stats, &event);
-  LifeCycleFunctor& functor_ref = functor;
-  background_thread->PostTask(RTC_FROM_HERE, functor_ref);
-  event.Wait(Event::kForever);
-
-  EXPECT_EQ(1u, stats.copy_count);
-  EXPECT_EQ(0u, stats.move_count);
-}
-
-TEST(ThreadPostTaskTest, InvokesWithCopiedFunctorDestroyedOnTargetThread) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event event;
-  bool was_invoked_on_background_thread = false;
-  DestructionFunctor functor(background_thread.get(),
-                             &was_invoked_on_background_thread, &event);
-  background_thread->PostTask(RTC_FROM_HERE, functor);
-  event.Wait(Event::kForever);
-
-  EXPECT_TRUE(was_invoked_on_background_thread);
-}
-
-TEST(ThreadPostTaskTest, InvokesWithMovedFunctorDestroyedOnTargetThread) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event event;
-  bool was_invoked_on_background_thread = false;
-  DestructionFunctor functor(background_thread.get(),
-                             &was_invoked_on_background_thread, &event);
-  background_thread->PostTask(RTC_FROM_HERE, std::move(functor));
-  event.Wait(Event::kForever);
-
-  EXPECT_TRUE(was_invoked_on_background_thread);
-}
-
-TEST(ThreadPostTaskTest,
-     InvokesWithReferencedFunctorShouldCopyAndDestroyedOnTargetThread) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event event;
-  bool was_invoked_on_background_thread = false;
-  DestructionFunctor functor(background_thread.get(),
-                             &was_invoked_on_background_thread, &event);
-  DestructionFunctor& functor_ref = functor;
-  background_thread->PostTask(RTC_FROM_HERE, functor_ref);
-  event.Wait(Event::kForever);
-
-  EXPECT_TRUE(was_invoked_on_background_thread);
-}
-
-TEST(ThreadPostTaskTest, InvokesOnBackgroundThread) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event event;
-  bool was_invoked_on_background_thread = false;
-  background_thread->PostTask(RTC_FROM_HERE,
-                              Bind(&ThreadIsCurrent, background_thread.get(),
-                                   &was_invoked_on_background_thread, &event));
-  event.Wait(Event::kForever);
-
-  EXPECT_TRUE(was_invoked_on_background_thread);
-}
-
-TEST(ThreadPostTaskTest, InvokesAsynchronously) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  // The first event ensures that SendSingleMessage() is not blocking this
-  // thread. The second event ensures that the message is processed.
-  Event event_set_by_test_thread;
-  Event event_set_by_background_thread;
-  background_thread->PostTask(RTC_FROM_HERE,
-                              Bind(&WaitAndSetEvent, &event_set_by_test_thread,
-                                   &event_set_by_background_thread));
-  event_set_by_test_thread.Set();
-  event_set_by_background_thread.Wait(Event::kForever);
-}
-
-TEST(ThreadPostTaskTest, InvokesInPostedOrder) {
-  std::unique_ptr<rtc::Thread> background_thread(rtc::Thread::Create());
-  background_thread->Start();
-
-  Event first;
-  Event second;
-  Event third;
-  Event fourth;
-
-  background_thread->PostTask(RTC_FROM_HERE,
-                              Bind(&WaitAndSetEvent, &first, &second));
-  background_thread->PostTask(RTC_FROM_HERE,
-                              Bind(&WaitAndSetEvent, &second, &third));
-  background_thread->PostTask(RTC_FROM_HERE,
-                              Bind(&WaitAndSetEvent, &third, &fourth));
-
-  // All tasks have been posted before the first one is unblocked.
-  first.Set();
-  // Only if the chain is invoked in posted order will the last event be set.
-  fourth.Wait(Event::kForever);
-}
-
-}  // namespace
-}  // namespace rtc

@@ -15,13 +15,12 @@
 #include <utility>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "modules/desktop_capture/desktop_frame.h"
 #include "modules/desktop_capture/win/screen_capture_utils.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/time_utils.h"
-#include "rtc_base/trace_event.h"
+#include "rtc_base/ptr_util.h"
+#include "rtc_base/timeutils.h"
 
 namespace webrtc {
 
@@ -65,13 +64,14 @@ bool ScreenCapturerWinDirectx::GetScreenListFromDeviceNames(
   }
 
   for (const auto& device_name : device_names) {
-    const auto it = std::find(gdi_names.begin(), gdi_names.end(), device_name);
+    const auto it = std::find(
+        gdi_names.begin(), gdi_names.end(), device_name);
     if (it == gdi_names.end()) {
       // devices_names[i] has not been found in gdi_names, so use max_screen_id.
       max_screen_id++;
-      screens->push_back({max_screen_id});
+      screens->push_back({ max_screen_id });
     } else {
-      screens->push_back({gdi_screens[it - gdi_names.begin()]});
+      screens->push_back({ gdi_screens[it - gdi_names.begin()] });
     }
   }
 
@@ -117,47 +117,45 @@ void ScreenCapturerWinDirectx::SetSharedMemoryFactory(
 
 void ScreenCapturerWinDirectx::CaptureFrame() {
   RTC_DCHECK(callback_);
-  TRACE_EVENT0("webrtc", "ScreenCapturerWinDirectx::CaptureFrame");
 
   int64_t capture_start_time_nanos = rtc::TimeNanos();
 
   frames_.MoveToNextFrame();
   if (!frames_.current_frame()) {
     frames_.ReplaceCurrentFrame(
-        absl::make_unique<DxgiFrame>(shared_memory_factory_.get()));
+        rtc::MakeUnique<DxgiFrame>(shared_memory_factory_.get()));
   }
 
   DxgiDuplicatorController::Result result;
   if (current_screen_id_ == kFullDesktopScreenId) {
     result = controller_->Duplicate(frames_.current_frame());
   } else {
-    result = controller_->DuplicateMonitor(frames_.current_frame(),
-                                           current_screen_id_);
+    result = controller_->DuplicateMonitor(
+        frames_.current_frame(), current_screen_id_);
   }
 
   using DuplicateResult = DxgiDuplicatorController::Result;
   if (result != DuplicateResult::SUCCEEDED) {
-    RTC_LOG(LS_ERROR) << "DxgiDuplicatorController failed to capture desktop, "
-                         "error code "
-                      << DxgiDuplicatorController::ResultName(result);
+    LOG(LS_ERROR) << "DxgiDuplicatorController failed to capture desktop, "
+                     "error code "
+                  << DxgiDuplicatorController::ResultName(result);
   }
   switch (result) {
     case DuplicateResult::UNSUPPORTED_SESSION: {
-      RTC_LOG(LS_ERROR)
-          << "Current binary is running on a session not supported "
-             "by DirectX screen capturer.";
+      LOG(LS_ERROR) << "Current binary is running on a session not supported "
+                       "by DirectX screen capturer.";
       callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
       break;
     }
     case DuplicateResult::FRAME_PREPARE_FAILED: {
-      RTC_LOG(LS_ERROR) << "Failed to allocate a new DesktopFrame.";
+      LOG(LS_ERROR) << "Failed to allocate a new DesktopFrame.";
       // This usually means we do not have enough memory or SharedMemoryFactory
       // cannot work correctly.
       callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
       break;
     }
     case DuplicateResult::INVALID_MONITOR_ID: {
-      RTC_LOG(LS_ERROR) << "Invalid monitor id " << current_screen_id_;
+      LOG(LS_ERROR) << "Invalid monitor id " << current_screen_id_;
       callback_->OnCaptureResult(Result::ERROR_PERMANENT, nullptr);
       break;
     }
@@ -169,8 +167,9 @@ void ScreenCapturerWinDirectx::CaptureFrame() {
     case DuplicateResult::SUCCEEDED: {
       std::unique_ptr<DesktopFrame> frame =
           frames_.current_frame()->frame()->Share();
-      frame->set_capture_time_ms((rtc::TimeNanos() - capture_start_time_nanos) /
-                                 rtc::kNumNanosecsPerMillisec);
+      frame->set_capture_time_ms(
+          (rtc::TimeNanos() - capture_start_time_nanos) /
+          rtc::kNumNanosecsPerMillisec);
       frame->set_capturer_id(DesktopCapturerId::kScreenCapturerWinDirectx);
       callback_->OnCaptureResult(Result::SUCCESS, std::move(frame));
       break;

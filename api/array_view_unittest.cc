@@ -9,7 +9,6 @@
  */
 
 #include <algorithm>
-#include <array>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,21 +27,16 @@ using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 
 template <typename T>
-size_t Call(ArrayView<T> av) {
-  return av.size();
-}
-
-template <typename T, size_t N>
-void CallFixed(ArrayView<T, N> av) {}
+void Call(ArrayView<T>) {}
 
 }  // namespace
 
 TEST(ArrayViewTest, TestConstructFromPtrAndArray) {
   char arr[] = "Arrr!";
   const char carr[] = "Carrr!";
-  EXPECT_EQ(6u, Call<const char>(arr));
-  EXPECT_EQ(7u, Call<const char>(carr));
-  EXPECT_EQ(6u, Call<char>(arr));
+  Call<const char>(arr);
+  Call<const char>(carr);
+  Call<char>(arr);
   // Call<char>(carr);  // Compile error, because can't drop const.
   // Call<int>(arr);  // Compile error, because incompatible types.
   ArrayView<int*> x;
@@ -186,47 +180,12 @@ TEST(ArrayViewTest, TestCopyAssignmentFixed) {
   // v = z;  // Compile error, because can't drop const.
 }
 
-TEST(ArrayViewTest, TestStdArray) {
-  EXPECT_EQ(4u, Call<const int>(std::array<int, 4>{1, 2, 3, 4}));
-  CallFixed<const int, 3>(std::array<int, 3>{2, 3, 4});
-  constexpr size_t size = 5;
-  std::array<float, size> arr{};
-  // Fixed size view.
-  rtc::ArrayView<float, size> arr_view_fixed(arr);
-  EXPECT_EQ(arr.data(), arr_view_fixed.data());
-  static_assert(size == arr_view_fixed.size(), "");
-  // Variable size view.
-  rtc::ArrayView<float> arr_view(arr);
-  EXPECT_EQ(arr.data(), arr_view.data());
-  EXPECT_EQ(size, arr_view.size());
-}
-
-TEST(ArrayViewTest, TestConstStdArray) {
-  constexpr size_t size = 5;
-
-  constexpr std::array<float, size> constexpr_arr{};
-  rtc::ArrayView<const float, size> constexpr_arr_view(constexpr_arr);
-  EXPECT_EQ(constexpr_arr.data(), constexpr_arr_view.data());
-  static_assert(constexpr_arr.size() == constexpr_arr_view.size(), "");
-
-  const std::array<float, size> const_arr{};
-  rtc::ArrayView<const float, size> const_arr_view(const_arr);
-  EXPECT_EQ(const_arr.data(), const_arr_view.data());
-  static_assert(const_arr.size() == const_arr_view.size(), "");
-
-  std::array<float, size> non_const_arr{};
-  rtc::ArrayView<const float, size> non_const_arr_view(non_const_arr);
-  EXPECT_EQ(non_const_arr.data(), non_const_arr_view.data());
-  static_assert(non_const_arr.size() == non_const_arr_view.size(), "");
-}
-
 TEST(ArrayViewTest, TestStdVector) {
-  EXPECT_EQ(3u, Call<const int>(std::vector<int>{4, 5, 6}));
   std::vector<int> v;
   v.push_back(3);
   v.push_back(11);
-  EXPECT_EQ(2u, Call<const int>(v));
-  EXPECT_EQ(2u, Call<int>(v));
+  Call<const int>(v);
+  Call<int>(v);
   // Call<unsigned int>(v);  // Compile error, because incompatible types.
   ArrayView<int> x = v;
   EXPECT_EQ(2u, x.size());
@@ -237,7 +196,7 @@ TEST(ArrayViewTest, TestStdVector) {
   EXPECT_EQ(v.data(), y.data());
   // ArrayView<double> d = v;  // Compile error, because incompatible types.
   const std::vector<int> cv;
-  EXPECT_EQ(0u, Call<const int>(cv));
+  Call<const int>(cv);
   // Call<int>(cv);  // Compile error, because can't drop const.
   ArrayView<const int> z = cv;
   EXPECT_EQ(0u, z.size());
@@ -247,8 +206,8 @@ TEST(ArrayViewTest, TestStdVector) {
 
 TEST(ArrayViewTest, TestRtcBuffer) {
   rtc::Buffer b = "so buffer";
-  EXPECT_EQ(10u, Call<const uint8_t>(b));
-  EXPECT_EQ(10u, Call<uint8_t>(b));
+  Call<const uint8_t>(b);
+  Call<uint8_t>(b);
   // Call<int8_t>(b);  // Compile error, because incompatible types.
   ArrayView<uint8_t> x = b;
   EXPECT_EQ(10u, x.size());
@@ -259,7 +218,7 @@ TEST(ArrayViewTest, TestRtcBuffer) {
   EXPECT_EQ(b.data(), y.data());
   // ArrayView<char> d = b;  // Compile error, because incompatible types.
   const rtc::Buffer cb = "very const";
-  EXPECT_EQ(11u, Call<const uint8_t>(cb));
+  Call<const uint8_t>(cb);
   // Call<uint8_t>(cb);  // Compile error, because can't drop const.
   ArrayView<const uint8_t> z = cb;
   EXPECT_EQ(11u, z.size());

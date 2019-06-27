@@ -12,7 +12,6 @@
 
 #include <algorithm>
 
-#include "absl/memory/memory.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -26,21 +25,6 @@ RateStatistics::RateStatistics(int64_t window_size_ms, float scale)
       scale_(scale),
       max_window_size_ms_(window_size_ms),
       current_window_size_ms_(max_window_size_ms_) {}
-
-RateStatistics::RateStatistics(const RateStatistics& other)
-    : accumulated_count_(other.accumulated_count_),
-      num_samples_(other.num_samples_),
-      oldest_time_(other.oldest_time_),
-      oldest_index_(other.oldest_index_),
-      scale_(other.scale_),
-      max_window_size_ms_(other.max_window_size_ms_),
-      current_window_size_ms_(other.current_window_size_ms_) {
-  buckets_ = absl::make_unique<Bucket[]>(other.max_window_size_ms_);
-  std::copy(other.buckets_.get(),
-            other.buckets_.get() + other.max_window_size_ms_, buckets_.get());
-}
-
-RateStatistics::RateStatistics(RateStatistics&& other) = default;
 
 RateStatistics::~RateStatistics() {}
 
@@ -77,7 +61,7 @@ void RateStatistics::Update(size_t count, int64_t now_ms) {
   ++num_samples_;
 }
 
-absl::optional<uint32_t> RateStatistics::Rate(int64_t now_ms) const {
+rtc::Optional<uint32_t> RateStatistics::Rate(int64_t now_ms) const {
   // Yeah, this const_cast ain't pretty, but the alternative is to declare most
   // of the members as mutable...
   const_cast<RateStatistics*>(this)->EraseOld(now_ms);
@@ -87,11 +71,12 @@ absl::optional<uint32_t> RateStatistics::Rate(int64_t now_ms) const {
   int64_t active_window_size = now_ms - oldest_time_ + 1;
   if (num_samples_ == 0 || active_window_size <= 1 ||
       (num_samples_ <= 1 && active_window_size < current_window_size_ms_)) {
-    return absl::nullopt;
+    return rtc::Optional<uint32_t>();
   }
 
   float scale = scale_ / active_window_size;
-  return static_cast<uint32_t>(accumulated_count_ * scale + 0.5f);
+  return rtc::Optional<uint32_t>(
+      static_cast<uint32_t>(accumulated_count_ * scale + 0.5f));
 }
 
 void RateStatistics::EraseOld(int64_t now_ms) {

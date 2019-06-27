@@ -13,8 +13,8 @@
 #include <stdlib.h>
 
 #include "rtc_base/checks.h"
+#include "common_audio/fft4g.h"
 #include "common_audio/signal_processing/include/signal_processing_library.h"
-#include "common_audio/third_party/fft4g/fft4g.h"
 #include "modules/audio_processing/ns/noise_suppression.h"
 #include "modules/audio_processing/ns/ns_core.h"
 #include "modules/audio_processing/ns/windows_private.h"
@@ -166,8 +166,6 @@ int WebRtcNs_InitCore(NoiseSuppressionC* self, uint32_t fs) {
   self->featureData[5] = 0.f;  // Normalization for spectral difference.
   // Window time-average of input magnitude spectrum.
   self->featureData[6] = 0.f;
-
-  memset(self->parametricNoise, 0, sizeof(float) * HALF_ANAL_BLOCKL);
 
   // Histogram quantities: used to estimate/update thresholds for features.
   memset(self->histLrt, 0, sizeof(int) * HIST_PAR_EST);
@@ -1081,7 +1079,6 @@ void WebRtcNs_AnalyzeCore(NoiseSuppressionC* self, const float* speechFrame) {
     // Depending on the duration of the inactive signal it takes a
     // considerable amount of time for the system to learn what is noise and
     // what is speech.
-    self->signalEnergy = 0;
     return;
   }
 
@@ -1240,7 +1237,7 @@ void WebRtcNs_ProcessCore(NoiseSuppressionC* self,
 
   Windowing(self->window, self->dataBuf, self->anaLen, winData);
   energy1 = Energy(winData, self->anaLen);
-  if (energy1 == 0.0 || self->signalEnergy == 0) {
+  if (energy1 == 0.0) {
     // Synthesize the special case of zero input.
     // Read out fully processed segment.
     for (i = self->windShift; i < self->blockLen + self->windShift; i++) {
@@ -1380,7 +1377,6 @@ void WebRtcNs_ProcessCore(NoiseSuppressionC* self,
       sumMagnAnalyze += self->magnPrevAnalyze[i];
       sumMagnProcess += self->magnPrevProcess[i];
     }
-    RTC_DCHECK_GT(sumMagnAnalyze, 0);
     avgProbSpeechHB *= sumMagnProcess / sumMagnAnalyze;
     // Average filter gain from low band.
     // Average over second half (i.e., 4->8kHz) of frequencies spectrum.

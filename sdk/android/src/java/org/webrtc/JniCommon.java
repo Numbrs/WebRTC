@@ -10,14 +10,9 @@
 
 package org.webrtc;
 
-import java.nio.ByteBuffer;
-
 /** Class with static JNI helper functions that are used in many places. */
-public class JniCommon {
+class JniCommon {
   /** Functions to increment/decrement an rtc::RefCountInterface pointer. */
-  public static native void nativeAddRef(long refCountedPointer);
-  public static native void nativeReleaseRef(long refCountedPointer);
-
-  public static native ByteBuffer nativeAllocateByteBuffer(int size);
-  public static native void nativeFreeByteBuffer(ByteBuffer buffer);
+  static native void nativeAddRef(long nativeRefCountedPointer);
+  static native void nativeReleaseRef(long nativeRefCountedPointer);
 }

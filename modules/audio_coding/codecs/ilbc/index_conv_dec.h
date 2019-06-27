@@ -19,9 +19,10 @@
 #ifndef MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_INDEX_CONV_DEC_H_
 #define MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_INDEX_CONV_DEC_H_
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
+#include "defines.h"
 
-void WebRtcIlbcfix_IndexConvDec(int16_t* index /* (i/o) Codebook indexes */
+void WebRtcIlbcfix_IndexConvDec(
+    int16_t *index   /* (i/o) Codebook indexes */
                                 );
 
 #endif

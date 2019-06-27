@@ -12,6 +12,7 @@
 #include "rtc_base/logging.h"
 #include "test/testsupport/frame_writer.h"
 
+
 namespace webrtc {
 namespace test {
 
@@ -19,9 +20,8 @@ JpegFrameWriter::JpegFrameWriter(const std::string& /*output_filename*/) {}
 
 bool JpegFrameWriter::WriteFrame(const VideoFrame& /*input_frame*/,
                                  int /*quality*/) {
-  RTC_LOG(LS_WARNING)
-      << "Libjpeg isn't available on IOS. Jpeg frame writer is not "
-         "supported. No frame will be saved.";
+  LOG(LS_WARNING) << "Libjpeg isn't available on IOS. Jpeg frame writer is not "
+      "supported. No frame will be saved.";
   // Don't fail.
   return true;
 }

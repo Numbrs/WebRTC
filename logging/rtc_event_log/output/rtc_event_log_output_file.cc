@@ -14,6 +14,7 @@
 #include "logging/rtc_event_log/rtc_event_log.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "system_wrappers/include/file_wrapper.h"
 
 namespace webrtc {
 
@@ -29,39 +30,48 @@ RtcEventLogOutputFile::RtcEventLogOutputFile(const std::string& file_name)
 
 RtcEventLogOutputFile::RtcEventLogOutputFile(const std::string& file_name,
                                              size_t max_size_bytes)
+    : max_size_bytes_(max_size_bytes), file_(FileWrapper::Create()) {
+  RTC_CHECK_LE(max_size_bytes_, kMaxReasonableFileSize);
 
-    // Unlike plain fopen, CreatePlatformFile takes care of filename utf8 ->
-    // wchar conversion on windows.
-    : RtcEventLogOutputFile(rtc::CreatePlatformFile(file_name),
-                            max_size_bytes) {}
+  if (!file_->OpenFile(file_name.c_str(), false)) {
+    LOG(LS_ERROR) << "Can't open file. WebRTC event log not started.";
+    file_.reset();
+    return;
+  }
+}
 
 RtcEventLogOutputFile::RtcEventLogOutputFile(rtc::PlatformFile file)
     : RtcEventLogOutputFile(file, RtcEventLog::kUnlimitedOutput) {}
 
-RtcEventLogOutputFile::RtcEventLogOutputFile(rtc::PlatformFile platform_file,
+RtcEventLogOutputFile::RtcEventLogOutputFile(rtc::PlatformFile file,
                                              size_t max_size_bytes)
-    : max_size_bytes_(max_size_bytes) {
+    : max_size_bytes_(max_size_bytes), file_(FileWrapper::Create()) {
   RTC_CHECK_LE(max_size_bytes_, kMaxReasonableFileSize);
 
-  // Handle errors from the CreatePlatformFile call in above constructor.
-  if (platform_file == rtc::kInvalidPlatformFileValue) {
-    RTC_LOG(LS_ERROR) << "Invalid file. WebRTC event log not started.";
-    return;
-  }
-  file_ = rtc::FdopenPlatformFileForWriting(platform_file);
-  if (!file_) {
-    RTC_LOG(LS_ERROR) << "Can't open file. WebRTC event log not started.";
+  FILE* file_handle = rtc::FdopenPlatformFileForWriting(file);
+  if (!file_handle) {
+    LOG(LS_ERROR) << "Can't open file. WebRTC event log not started.";
     // Even though we failed to open a FILE*, the file is still open
     // and needs to be closed.
-    if (!rtc::ClosePlatformFile(platform_file)) {
-      RTC_LOG(LS_ERROR) << "Can't close file.";
+    if (!rtc::ClosePlatformFile(file)) {
+      LOG(LS_ERROR) << "Can't close file.";
     }
+    file_.reset();
+    return;
+  }
+
+  if (!file_->OpenFromFileHandle(file_handle)) {
+    LOG(LS_ERROR) << "Can't open file. WebRTC event log not started.";
+    file_.reset();
+    return;
   }
 }
 
 RtcEventLogOutputFile::~RtcEventLogOutputFile() {
   if (file_) {
-    fclose(file_);
+    RTC_DCHECK(IsActiveInternal());
+    file_->CloseFile();
+    file_.reset();
   }
 }
 
@@ -75,27 +85,29 @@ bool RtcEventLogOutputFile::Write(const std::string& output) {
   // calculation of (written_bytes_ + output.length()).
   RTC_DCHECK_LT(output.length(), kMaxReasonableFileSize);
 
+  bool written = false;
   if (max_size_bytes_ == RtcEventLog::kUnlimitedOutput ||
       written_bytes_ + output.length() <= max_size_bytes_) {
-    if (fwrite(output.c_str(), 1, output.size(), file_) == output.size()) {
-      written_bytes_ += output.size();
-      return true;
-    } else {
-      RTC_LOG(LS_ERROR) << "Write to WebRtcEventLog file failed.";
+    written = file_->Write(output.c_str(), output.size());
+    if (!written) {
+      LOG(LS_ERROR) << "FileWrapper failed to write WebRtcEventLog file.";
     }
   } else {
-    RTC_LOG(LS_VERBOSE) << "Max file size reached.";
+    LOG(LS_VERBOSE) << "Max file size reached.";
   }
 
-  // Failed, for one of above reasons. Close output file.
-  fclose(file_);
-  file_ = nullptr;
-  return false;
+  if (written) {
+    written_bytes_ += output.size();
+  } else {
+    file_->CloseFile();
+    file_.reset();
+  }
+
+  return written;
 }
 
-// Internal non-virtual method.
 bool RtcEventLogOutputFile::IsActiveInternal() const {
-  return file_ != nullptr;
+  return file_ && file_->is_open();
 }
 
 }  // namespace webrtc

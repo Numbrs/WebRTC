@@ -11,45 +11,18 @@
 #ifndef MODULES_AUDIO_PROCESSING_AEC3_DOWNSAMPLED_RENDER_BUFFER_H_
 #define MODULES_AUDIO_PROCESSING_AEC3_DOWNSAMPLED_RENDER_BUFFER_H_
 
-#include <stddef.h>
-#include <vector>
+#include <array>
 
-#include "rtc_base/checks.h"
+#include "modules/audio_processing/aec3/aec3_common.h"
 
 namespace webrtc {
 
 // Holds the circular buffer of the downsampled render data.
 struct DownsampledRenderBuffer {
-  explicit DownsampledRenderBuffer(size_t downsampled_buffer_size);
+  DownsampledRenderBuffer();
   ~DownsampledRenderBuffer();
-
-  int IncIndex(int index) const {
-    RTC_DCHECK_EQ(buffer.size(), static_cast<size_t>(size));
-    return index < size - 1 ? index + 1 : 0;
-  }
-
-  int DecIndex(int index) const {
-    RTC_DCHECK_EQ(buffer.size(), static_cast<size_t>(size));
-    return index > 0 ? index - 1 : size - 1;
-  }
-
-  int OffsetIndex(int index, int offset) const {
-    RTC_DCHECK_GE(buffer.size(), offset);
-    RTC_DCHECK_EQ(buffer.size(), static_cast<size_t>(size));
-    return (size + index + offset) % size;
-  }
-
-  void UpdateWriteIndex(int offset) { write = OffsetIndex(write, offset); }
-  void IncWriteIndex() { write = IncIndex(write); }
-  void DecWriteIndex() { write = DecIndex(write); }
-  void UpdateReadIndex(int offset) { read = OffsetIndex(read, offset); }
-  void IncReadIndex() { read = IncIndex(read); }
-  void DecReadIndex() { read = DecIndex(read); }
-
-  const int size;
-  std::vector<float> buffer;
-  int write = 0;
-  int read = 0;
+  std::array<float, kDownsampledRenderBufferSize> buffer = {};
+  int position = 0;
 };
 
 }  // namespace webrtc

@@ -14,17 +14,17 @@
 #include <memory>
 #include <vector>
 
-#include "absl/types/optional.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_encoder.h"
 #include "api/audio_codecs/audio_format.h"
-#include "rtc_base/system/rtc_export.h"
+#include "api/optional.h"
 
 namespace webrtc {
 
 // L16 encoder API for use as a template parameter to
 // CreateAudioEncoderFactory<...>().
-struct RTC_EXPORT AudioEncoderL16 {
+//
+// NOTE: This struct is still under development and may change without notice.
+struct AudioEncoderL16 {
   struct Config {
     bool IsOk() const {
       return (sample_rate_hz == 8000 || sample_rate_hz == 16000 ||
@@ -36,13 +36,11 @@ struct RTC_EXPORT AudioEncoderL16 {
     int num_channels = 1;
     int frame_size_ms = 10;
   };
-  static absl::optional<Config> SdpToConfig(const SdpAudioFormat& audio_format);
+  static rtc::Optional<Config> SdpToConfig(const SdpAudioFormat& audio_format);
   static void AppendSupportedEncoders(std::vector<AudioCodecSpec>* specs);
   static AudioCodecInfo QueryAudioEncoder(const Config& config);
-  static std::unique_ptr<AudioEncoder> MakeAudioEncoder(
-      const Config& config,
-      int payload_type,
-      absl::optional<AudioCodecPairId> codec_pair_id = absl::nullopt);
+  static std::unique_ptr<AudioEncoder> MakeAudioEncoder(const Config& config,
+                                                        int payload_type);
 };
 
 }  // namespace webrtc

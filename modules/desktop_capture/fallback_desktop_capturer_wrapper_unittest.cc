@@ -10,7 +10,6 @@
 
 #include "modules/desktop_capture/fallback_desktop_capturer_wrapper.h"
 
-#include <stddef.h>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -181,8 +180,8 @@ TEST_F(FallbackDesktopCapturerWrapperTest, BothFailed) {
 }
 
 TEST_F(FallbackDesktopCapturerWrapperTest, WithSharedMemory) {
-  wrapper_->SetSharedMemoryFactory(
-      std::unique_ptr<SharedMemoryFactory>(new FakeSharedMemoryFactory()));
+  wrapper_->SetSharedMemoryFactory(std::unique_ptr<SharedMemoryFactory>(
+      new FakeSharedMemoryFactory()));
   wrapper_->CaptureFrame();
   main_capturer_->set_result(DesktopCapturer::Result::ERROR_TEMPORARY);
   wrapper_->CaptureFrame();

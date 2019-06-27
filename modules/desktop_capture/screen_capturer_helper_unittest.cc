@@ -55,7 +55,8 @@ TEST_F(ScreenCapturerHelperTest, InvalidateScreen) {
 TEST_F(ScreenCapturerHelperTest, SizeMostRecent) {
   EXPECT_TRUE(capturer_helper_.size_most_recent().is_empty());
   capturer_helper_.set_size_most_recent(DesktopSize(12, 34));
-  EXPECT_TRUE(DesktopSize(12, 34).equals(capturer_helper_.size_most_recent()));
+  EXPECT_TRUE(
+      DesktopSize(12, 34).equals(capturer_helper_.size_most_recent()));
 }
 
 TEST_F(ScreenCapturerHelperTest, SetLogGridSize) {
@@ -102,8 +103,7 @@ TEST_F(ScreenCapturerHelperTest, SetLogGridSize) {
   EXPECT_TRUE(DesktopRegion(DesktopRect::MakeXYWH(7, 7, 1, 1)).Equals(region));
 }
 
-void TestExpandRegionToGrid(const DesktopRegion& region,
-                            int log_grid_size,
+void TestExpandRegionToGrid(const DesktopRegion& region, int log_grid_size,
                             const DesktopRegion& expanded_region_expected) {
   DesktopRegion expanded_region1;
   ScreenCapturerHelper::ExpandToGrid(region, log_grid_size, &expanded_region1);
@@ -115,15 +115,9 @@ void TestExpandRegionToGrid(const DesktopRegion& region,
   EXPECT_TRUE(expanded_region1.Equals(expanded_region2));
 }
 
-void TestExpandRectToGrid(int l,
-                          int t,
-                          int r,
-                          int b,
-                          int log_grid_size,
-                          int lExpanded,
-                          int tExpanded,
-                          int rExpanded,
-                          int bExpanded) {
+void TestExpandRectToGrid(int l, int t, int r, int b, int log_grid_size,
+                          int lExpanded, int tExpanded,
+                          int rExpanded, int bExpanded) {
   TestExpandRegionToGrid(DesktopRegion(DesktopRect::MakeLTRB(l, t, r, b)),
                          log_grid_size,
                          DesktopRegion(DesktopRect::MakeLTRB(
@@ -137,23 +131,23 @@ TEST_F(ScreenCapturerHelperTest, ExpandToGrid) {
     int x = i * kGridSize;
     for (int j = -2; j <= 2; j++) {
       int y = j * kGridSize;
-      TestExpandRectToGrid(x + 0, y + 0, x + 1, y + 1, kLogGridSize, x + 0,
-                           y + 0, x + kGridSize, y + kGridSize);
+      TestExpandRectToGrid(x + 0, y + 0, x + 1, y + 1, kLogGridSize,
+                           x + 0, y + 0, x + kGridSize, y + kGridSize);
       TestExpandRectToGrid(x + 0, y + kGridSize - 1, x + 1, y + kGridSize,
-                           kLogGridSize, x + 0, y + 0, x + kGridSize,
-                           y + kGridSize);
-      TestExpandRectToGrid(x + kGridSize - 1, y + kGridSize - 1, x + kGridSize,
-                           y + kGridSize, kLogGridSize, x + 0, y + 0,
-                           x + kGridSize, y + kGridSize);
-      TestExpandRectToGrid(x + kGridSize - 1, y + 0, x + kGridSize, y + 1,
-                           kLogGridSize, x + 0, y + 0, x + kGridSize,
-                           y + kGridSize);
+                           kLogGridSize,
+                           x + 0, y + 0, x + kGridSize, y + kGridSize);
+      TestExpandRectToGrid(x + kGridSize - 1, y + kGridSize - 1,
+                           x + kGridSize, y + kGridSize, kLogGridSize,
+                           x + 0, y + 0, x + kGridSize, y + kGridSize);
+      TestExpandRectToGrid(x + kGridSize - 1, y + 0,
+                           x + kGridSize, y + 1, kLogGridSize,
+                           x + 0, y + 0, x + kGridSize, y + kGridSize);
       TestExpandRectToGrid(x - 1, y + 0, x + 1, y + 1, kLogGridSize,
                            x - kGridSize, y + 0, x + kGridSize, y + kGridSize);
       TestExpandRectToGrid(x - 1, y - 1, x + 1, y + 0, kLogGridSize,
                            x - kGridSize, y - kGridSize, x + kGridSize, y);
-      TestExpandRectToGrid(x + 0, y - 1, x + 1, y + 1, kLogGridSize, x,
-                           y - kGridSize, x + kGridSize, y + kGridSize);
+      TestExpandRectToGrid(x + 0, y - 1, x + 1, y + 1, kLogGridSize,
+                           x, y - kGridSize, x + kGridSize, y + kGridSize);
       TestExpandRectToGrid(x - 1, y - 1, x + 0, y + 1, kLogGridSize,
                            x - kGridSize, y - kGridSize, x, y + kGridSize);
 
@@ -170,18 +164,18 @@ TEST_F(ScreenCapturerHelperTest, ExpandToGrid) {
         }
         if (q != 1) {
           region.AddRect(DesktopRect::MakeXYWH(x, y - 1, 1, 1));
-          expanded_region_expected.AddRect(
-              DesktopRect::MakeXYWH(x, y - kGridSize, kGridSize, kGridSize));
+          expanded_region_expected.AddRect(DesktopRect::MakeXYWH(
+              x, y - kGridSize, kGridSize, kGridSize));
         }
         if (q != 2) {
           region.AddRect(DesktopRect::MakeXYWH(x - 1, y, 1, 1));
-          expanded_region_expected.AddRect(
-              DesktopRect::MakeXYWH(x - kGridSize, y, kGridSize, kGridSize));
+          expanded_region_expected.AddRect(DesktopRect::MakeXYWH(
+              x - kGridSize, y, kGridSize, kGridSize));
         }
         if (q != 3) {
           region.AddRect(DesktopRect::MakeXYWH(x, y, 1, 1));
-          expanded_region_expected.AddRect(
-              DesktopRect::MakeXYWH(x, y, kGridSize, kGridSize));
+          expanded_region_expected.AddRect(DesktopRect::MakeXYWH(
+              x, y, kGridSize, kGridSize));
         }
 
         TestExpandRegionToGrid(region, kLogGridSize, expanded_region_expected);

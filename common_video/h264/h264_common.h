@@ -11,8 +11,7 @@
 #ifndef COMMON_VIDEO_H264_H264_COMMON_H_
 #define COMMON_VIDEO_H264_H264_COMMON_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include <memory>
 #include <vector>
 
 #include "rtc_base/buffer.h"

@@ -10,7 +10,6 @@
 
 #include "modules/desktop_capture/rgba_color.h"
 
-#include <cstdint>
 #include <vector>
 
 #include "test/gtest.h"

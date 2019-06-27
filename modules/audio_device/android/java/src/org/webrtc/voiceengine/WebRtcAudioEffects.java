@@ -10,13 +10,13 @@
 
 package org.webrtc.voiceengine;
 
+import android.annotation.TargetApi;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.AudioEffect;
 import android.media.audiofx.AudioEffect.Descriptor;
 import android.media.audiofx.AutomaticGainControl;
 import android.media.audiofx.NoiseSuppressor;
 import android.os.Build;
-import android.support.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 import org.webrtc.Logging;
@@ -40,20 +40,20 @@ public class WebRtcAudioEffects {
   // Contains the available effect descriptors returned from the
   // AudioEffect.getEffects() call. This result is cached to avoid doing the
   // slow OS call multiple times.
-  private static @Nullable Descriptor[] cachedEffects;
+  private static Descriptor[] cachedEffects = null;
 
   // Contains the audio effect objects. Created in enable() and destroyed
   // in release().
-  private @Nullable AcousticEchoCanceler aec;
-  private @Nullable NoiseSuppressor ns;
+  private AcousticEchoCanceler aec = null;
+  private NoiseSuppressor ns = null;
 
   // Affects the final state given to the setEnabled() method on each effect.
   // The default state is set to "disabled" but each effect can also be enabled
   // by calling setAEC() and setNS().
   // To enable an effect, both the shouldEnableXXX member and the static
   // canUseXXX() must be true.
-  private boolean shouldEnableAec;
-  private boolean shouldEnableNs;
+  private boolean shouldEnableAec = false;
+  private boolean shouldEnableNs = false;
 
   // Checks if the device implements Acoustic Echo Cancellation (AEC).
   // Returns true if the device implements AEC, false otherwise.
@@ -95,9 +95,8 @@ public class WebRtcAudioEffects {
 
   // Returns true if the platform AEC should be excluded based on its UUID.
   // AudioEffect.queryEffects() can throw IllegalStateException.
+  @TargetApi(18)
   private static boolean isAcousticEchoCancelerExcludedByUUID() {
-    if (Build.VERSION.SDK_INT < 18)
-      return false;
     for (Descriptor d : getAvailableEffects()) {
       if (d.type.equals(AudioEffect.EFFECT_TYPE_AEC)
           && d.uuid.equals(AOSP_ACOUSTIC_ECHO_CANCELER)) {
@@ -109,9 +108,8 @@ public class WebRtcAudioEffects {
 
   // Returns true if the platform NS should be excluded based on its UUID.
   // AudioEffect.queryEffects() can throw IllegalStateException.
+  @TargetApi(18)
   private static boolean isNoiseSuppressorExcludedByUUID() {
-    if (Build.VERSION.SDK_INT < 18)
-      return false;
     for (Descriptor d : getAvailableEffects()) {
       if (d.type.equals(AudioEffect.EFFECT_TYPE_NS) && d.uuid.equals(AOSP_NOISE_SUPPRESSOR)) {
         return true;
@@ -121,16 +119,14 @@ public class WebRtcAudioEffects {
   }
 
   // Returns true if the device supports Acoustic Echo Cancellation (AEC).
+  @TargetApi(18)
   private static boolean isAcousticEchoCancelerEffectAvailable() {
-    if (Build.VERSION.SDK_INT < 18)
-      return false;
     return isEffectTypeAvailable(AudioEffect.EFFECT_TYPE_AEC);
   }
 
   // Returns true if the device supports Noise Suppression (NS).
+  @TargetApi(18)
   private static boolean isNoiseSuppressorEffectAvailable() {
-    if (Build.VERSION.SDK_INT < 18)
-      return false;
     return isEffectTypeAvailable(AudioEffect.EFFECT_TYPE_NS);
   }
 
@@ -277,8 +273,9 @@ public class WebRtcAudioEffects {
   // AudioEffect.Descriptor array that are actually not available on the device.
   // As an example: Samsung Galaxy S6 includes an AGC in the descriptor but
   // AutomaticGainControl.isAvailable() returns false.
+  @TargetApi(18)
   private boolean effectTypeIsVoIP(UUID type) {
-    if (Build.VERSION.SDK_INT < 18)
+    if (!WebRtcAudioUtils.runningOnJellyBeanMR2OrHigher())
       return false;
 
     return (AudioEffect.EFFECT_TYPE_AEC.equals(type) && isAcousticEchoCancelerSupported())
@@ -294,7 +291,7 @@ public class WebRtcAudioEffects {
 
   // Returns the cached copy of the audio effects array, if available, or
   // queries the operating system for the list of effects.
-  private static @Nullable Descriptor[] getAvailableEffects() {
+  private static Descriptor[] getAvailableEffects() {
     if (cachedEffects != null) {
       return cachedEffects;
     }

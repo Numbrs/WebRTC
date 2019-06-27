@@ -13,7 +13,7 @@
 
 #include <memory>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 
 namespace webrtc {
 
@@ -25,12 +25,11 @@ class QualityThreshold {
                    int high_threshold,
                    float fraction,
                    int max_measurements);
-  ~QualityThreshold();
 
   void AddMeasurement(int measurement);
-  absl::optional<bool> IsHigh() const;
-  absl::optional<double> CalculateVariance() const;
-  absl::optional<double> FractionHigh(int min_required_samples) const;
+  rtc::Optional<bool> IsHigh() const;
+  rtc::Optional<double> CalculateVariance() const;
+  rtc::Optional<double> FractionHigh(int min_required_samples) const;
 
  private:
   const std::unique_ptr<int[]> buffer_;
@@ -40,7 +39,7 @@ class QualityThreshold {
   const int high_threshold_;
   int until_full_;
   int next_index_;
-  absl::optional<bool> is_high_;
+  rtc::Optional<bool> is_high_;
   int sum_;
   int count_low_;
   int count_high_;

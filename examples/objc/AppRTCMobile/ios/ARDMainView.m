@@ -29,7 +29,7 @@ static CGFloat const kCallControlMargin = 8;
   if (self = [super initWithFrame:frame]) {
     _roomText = [[UITextField alloc] initWithFrame:CGRectZero];
     _roomText.borderStyle = UITextBorderStyleNone;
-    _roomText.font = [UIFont systemFontOfSize:12];
+    _roomText.font = [UIFont fontWithName:@"Roboto" size:12];
     _roomText.placeholder = @"Room name";
     _roomText.autocorrectionType = UITextAutocorrectionTypeNo;
     _roomText.autocapitalizationType = UITextAutocapitalizationTypeNone;
@@ -73,8 +73,10 @@ static CGFloat const kCallControlMargin = 8;
 
 @implementation ARDMainView {
   ARDRoomTextField *_roomText;
-  UIButton *_startRegularCallButton;
-  UIButton *_startLoopbackCallButton;
+  UILabel *_callOptionsLabel;
+  UISwitch *_loopbackSwitch;
+  UILabel *_loopbackLabel;
+  UIButton *_startCallButton;
   UIButton *_audioLoopButton;
 }
 
@@ -86,38 +88,40 @@ static CGFloat const kCallControlMargin = 8;
     _roomText = [[ARDRoomTextField alloc] initWithFrame:CGRectZero];
     [self addSubview:_roomText];
 
-    UIFont *controlFont = [UIFont boldSystemFontOfSize:18.0];
-    UIColor *controlFontColor = [UIColor whiteColor];
+    UIFont *controlFont = [UIFont fontWithName:@"Roboto" size:20];
+    UIColor *controlFontColor = [UIColor colorWithWhite:0 alpha:.6];
 
-    _startRegularCallButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _startRegularCallButton.titleLabel.font = controlFont;
-    [_startRegularCallButton setTitleColor:controlFontColor forState:UIControlStateNormal];
-    _startRegularCallButton.backgroundColor
-        = [UIColor colorWithRed:66.0/255.0 green:200.0/255.0 blue:90.0/255.0 alpha:1.0];
-    [_startRegularCallButton setTitle:@"Call room" forState:UIControlStateNormal];
-    [_startRegularCallButton addTarget:self
-                                action:@selector(onStartRegularCall:)
-                      forControlEvents:UIControlEventTouchUpInside];
-    [self addSubview:_startRegularCallButton];
+    _callOptionsLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _callOptionsLabel.text = @"Call Options";
+    _callOptionsLabel.font = controlFont;
+    _callOptionsLabel.textColor = controlFontColor;
+    [_callOptionsLabel sizeToFit];
+    [self addSubview:_callOptionsLabel];
 
-    _startLoopbackCallButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _startLoopbackCallButton.titleLabel.font = controlFont;
-    [_startLoopbackCallButton setTitleColor:controlFontColor forState:UIControlStateNormal];
-    _startLoopbackCallButton.backgroundColor =
-        [UIColor colorWithRed:0.0 green:122.0/255.0 blue:1.0 alpha:1.0];
-    [_startLoopbackCallButton setTitle:@"Loopback call" forState:UIControlStateNormal];
-    [_startLoopbackCallButton addTarget:self
-                                 action:@selector(onStartLoopbackCall:)
-                       forControlEvents:UIControlEventTouchUpInside];
-    [self addSubview:_startLoopbackCallButton];
+    _loopbackSwitch = [[UISwitch alloc] initWithFrame:CGRectZero];
+    [_loopbackSwitch sizeToFit];
+    [self addSubview:_loopbackSwitch];
 
+    _loopbackLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _loopbackLabel.text = @"Loopback mode";
+    _loopbackLabel.font = controlFont;
+    _loopbackLabel.textColor = controlFontColor;
+    [_loopbackLabel sizeToFit];
+    [self addSubview:_loopbackLabel];
+
+    _startCallButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_startCallButton setTitle:@"Start call"
+                      forState:UIControlStateNormal];
+    _startCallButton.titleLabel.font = controlFont;
+    [_startCallButton sizeToFit];
+    [_startCallButton addTarget:self
+                         action:@selector(onStartCall:)
+               forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:_startCallButton];
 
     // Used to test what happens to sounds when calls are in progress.
     _audioLoopButton = [UIButton buttonWithType:UIButtonTypeSystem];
     _audioLoopButton.titleLabel.font = controlFont;
-    [_audioLoopButton setTitleColor:controlFontColor forState:UIControlStateNormal];
-    _audioLoopButton.backgroundColor =
-        [UIColor colorWithRed:1.0 green:149.0/255.0 blue:0.0 alpha:1.0];
     [self updateAudioLoopButton];
     [_audioLoopButton addTarget:self
                          action:@selector(onToggleAudioLoop:)
@@ -142,42 +146,51 @@ static CGFloat const kCallControlMargin = 8;
   CGFloat roomTextWidth = bounds.size.width - 2 * kRoomTextFieldMargin;
   CGFloat roomTextHeight = [_roomText sizeThatFits:bounds.size].height;
   _roomText.frame =
-      CGRectMake(kRoomTextFieldMargin, kRoomTextFieldMargin, roomTextWidth,
-                 roomTextHeight);
+      CGRectMake(kRoomTextFieldMargin, kRoomTextFieldMargin, roomTextWidth, roomTextHeight);
 
-  CGFloat buttonHeight =
-      (CGRectGetMaxY(self.bounds) - CGRectGetMaxY(_roomText.frame) - kCallControlMargin * 4) / 3;
+  CGFloat callOptionsLabelTop =
+      CGRectGetMaxY(_roomText.frame) + kCallControlMargin * 4;
+  _callOptionsLabel.frame = CGRectMake(kCallControlMargin,
+                                       callOptionsLabelTop,
+                                       _callOptionsLabel.frame.size.width,
+                                       _callOptionsLabel.frame.size.height);
 
-  CGFloat regularCallFrameTop = CGRectGetMaxY(_roomText.frame) + kCallControlMargin;
-  CGRect regularCallFrame = CGRectMake(kCallControlMargin,
-                                       regularCallFrameTop,
-                                       bounds.size.width - 2*kCallControlMargin,
-                                       buttonHeight);
+  CGFloat loopbackModeTop = CGRectGetMaxY(_callOptionsLabel.frame) + kCallControlMargin * 2;
+  CGRect loopbackModeRect = CGRectMake(kCallControlMargin * 3,
+                                       loopbackModeTop,
+                                       _loopbackSwitch.frame.size.width,
+                                       _loopbackSwitch.frame.size.height);
+  _loopbackSwitch.frame = loopbackModeRect;
+  CGFloat loopbackModeLabelCenterX = CGRectGetMaxX(loopbackModeRect) +
+      kCallControlMargin + _loopbackLabel.frame.size.width / 2;
+  _loopbackLabel.center = CGPointMake(loopbackModeLabelCenterX,
+                                      CGRectGetMidY(loopbackModeRect));
 
-  CGFloat loopbackCallFrameTop = CGRectGetMaxY(regularCallFrame) + kCallControlMargin;
-  CGRect loopbackCallFrame = CGRectMake(kCallControlMargin,
-                                        loopbackCallFrameTop,
-                                        bounds.size.width - 2*kCallControlMargin,
-                                        buttonHeight);
+  CGFloat audioLoopTop = CGRectGetMaxY(loopbackModeRect) + kCallControlMargin * 3;
+  _audioLoopButton.frame = CGRectMake(kCallControlMargin,
+                                      audioLoopTop,
+                                      _audioLoopButton.frame.size.width,
+                                      _audioLoopButton.frame.size.height);
 
-  CGFloat audioLoopTop = CGRectGetMaxY(loopbackCallFrame) + kCallControlMargin;
-  CGRect audioLoopFrame = CGRectMake(kCallControlMargin,
-                                     audioLoopTop,
-                                     bounds.size.width - 2*kCallControlMargin,
-                                     buttonHeight);
-
-  _startRegularCallButton.frame = regularCallFrame;
-  _startLoopbackCallButton.frame = loopbackCallFrame;
-  _audioLoopButton.frame = audioLoopFrame;
+  CGFloat startCallTop =
+      CGRectGetMaxY(_audioLoopButton.frame) + kCallControlMargin * 3;
+  _startCallButton.frame = CGRectMake(kCallControlMargin,
+                                      startCallTop,
+                                      _startCallButton.frame.size.width,
+                                      _startCallButton.frame.size.height);
 }
 
 #pragma mark - Private
 
 - (void)updateAudioLoopButton {
   if (_isAudioLoopPlaying) {
-    [_audioLoopButton setTitle:@"Stop sound" forState:UIControlStateNormal];
+    [_audioLoopButton setTitle:@"Stop sound"
+                      forState:UIControlStateNormal];
+    [_audioLoopButton sizeToFit];
   } else {
-    [_audioLoopButton setTitle:@"Play sound" forState:UIControlStateNormal];
+    [_audioLoopButton setTitle:@"Play sound"
+                      forState:UIControlStateNormal];
+    [_audioLoopButton sizeToFit];
   }
 }
 
@@ -185,12 +198,8 @@ static CGFloat const kCallControlMargin = 8;
   [_delegate mainViewDidToggleAudioLoop:self];
 }
 
-- (void)onStartRegularCall:(id)sender {
-  [_delegate mainView:self didInputRoom:_roomText.roomText isLoopback:NO];
-}
-
-- (void)onStartLoopbackCall:(id)sender {
-  [_delegate mainView:self didInputRoom:_roomText.roomText isLoopback:YES];
+- (void)onStartCall:(id)sender {
+  [_delegate mainView:self didInputRoom:_roomText.roomText isLoopback:_loopbackSwitch.isOn];
 }
 
 @end

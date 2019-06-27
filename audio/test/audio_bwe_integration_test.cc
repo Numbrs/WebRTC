@@ -10,23 +10,17 @@
 
 #include "audio/test/audio_bwe_integration_test.h"
 
-#include "absl/memory/memory.h"
-#include "call/fake_network_pipe.h"
-#include "call/simulated_network.h"
 #include "common_audio/wav_file.h"
+#include "rtc_base/ptr_util.h"
 #include "system_wrappers/include/sleep.h"
 #include "test/field_trial.h"
 #include "test/gtest.h"
-#include "test/testsupport/file_utils.h"
+#include "test/testsupport/fileutils.h"
 
 namespace webrtc {
 namespace test {
 
 namespace {
-enum : int {  // The first valid value is 1.
-  kTransportSequenceNumberExtensionId = 1,
-};
-
 // Wait a second between stopping sending and stopping receiving audio.
 constexpr int kExtraProcessTimeMs = 1000;
 }  // namespace
@@ -43,14 +37,14 @@ size_t AudioBweTest::GetNumFlexfecStreams() const {
   return 0;
 }
 
-std::unique_ptr<TestAudioDeviceModule::Capturer>
+std::unique_ptr<test::FakeAudioDevice::Capturer>
 AudioBweTest::CreateCapturer() {
-  return TestAudioDeviceModule::CreateWavFileReader(AudioInputFile());
+  return test::FakeAudioDevice::CreateWavFileReader(AudioInputFile());
 }
 
 void AudioBweTest::OnFakeAudioDevicesCreated(
-    TestAudioDeviceModule* send_audio_device,
-    TestAudioDeviceModule* recv_audio_device) {
+    test::FakeAudioDevice* send_audio_device,
+    test::FakeAudioDevice* recv_audio_device) {
   send_audio_device_ = send_audio_device;
 }
 
@@ -59,20 +53,14 @@ test::PacketTransport* AudioBweTest::CreateSendTransport(
     Call* sender_call) {
   return new test::PacketTransport(
       task_queue, sender_call, this, test::PacketTransport::kSender,
-      test::CallTest::payload_type_map_,
-      absl::make_unique<FakeNetworkPipe>(
-          Clock::GetRealTimeClock(),
-          absl::make_unique<SimulatedNetwork>(GetNetworkPipeConfig())));
+      test::CallTest::payload_type_map_, GetNetworkPipeConfig());
 }
 
 test::PacketTransport* AudioBweTest::CreateReceiveTransport(
     SingleThreadedTaskQueueForTesting* task_queue) {
   return new test::PacketTransport(
       task_queue, nullptr, this, test::PacketTransport::kReceiver,
-      test::CallTest::payload_type_map_,
-      absl::make_unique<FakeNetworkPipe>(
-          Clock::GetRealTimeClock(),
-          absl::make_unique<SimulatedNetwork>(GetNetworkPipeConfig())));
+      test::CallTest::payload_type_map_, GetNetworkPipeConfig());
 }
 
 void AudioBweTest::PerformTest() {
@@ -104,12 +92,13 @@ class NoBandwidthDropAfterDtx : public AudioBweTest {
   void ModifyAudioConfigs(
       AudioSendStream::Config* send_config,
       std::vector<AudioReceiveStream::Config>* receive_configs) override {
-    send_config->send_codec_spec = AudioSendStream::Config::SendCodecSpec(
-        test::CallTest::kAudioSendPayloadType,
-        {"OPUS",
-         48000,
-         2,
-         {{"ptime", "60"}, {"usedtx", "1"}, {"stereo", "1"}}});
+    send_config->send_codec_spec =
+        rtc::Optional<AudioSendStream::Config::SendCodecSpec>(
+            {test::CallTest::kAudioSendPayloadType,
+             {"OPUS",
+              48000,
+              2,
+              {{"ptime", "60"}, {"usedtx", "1"}, {"stereo", "1"}}}});
 
     send_config->min_bitrate_bps = 6000;
     send_config->max_bitrate_bps = 100000;
@@ -127,8 +116,8 @@ class NoBandwidthDropAfterDtx : public AudioBweTest {
     return test::ResourcePath("voice_engine/audio_dtx16", "wav");
   }
 
-  BuiltInNetworkBehaviorConfig GetNetworkPipeConfig() override {
-    BuiltInNetworkBehaviorConfig pipe_config;
+  FakeNetworkPipe::Config GetNetworkPipeConfig() override {
+    FakeNetworkPipe::Config pipe_config;
     pipe_config.link_capacity_kbps = 50;
     pipe_config.queue_length_packets = 1500;
     pipe_config.queue_delay_ms = 300;
@@ -142,7 +131,7 @@ class NoBandwidthDropAfterDtx : public AudioBweTest {
   void PerformTest() override {
     stats_poller_.PostDelayedTask(
         std::unique_ptr<rtc::QueuedTask>(new StatsPollTask(sender_call_)), 100);
-    sender_call_->OnAudioTransportOverheadChanged(0);
+    sender_call_->OnTransportOverheadChanged(webrtc::MediaType::AUDIO, 0);
     AudioBweTest::PerformTest();
   }
 

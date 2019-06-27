@@ -17,9 +17,9 @@
 #include <memory>
 #include <vector>
 
-#include "absl/types/optional.h"
+#include "api/optional.h"
 #include "modules/remote_bitrate_estimator/test/bwe.h"
-#include "rtc_base/numerics/sequence_number_util.h"
+#include "modules/video_coding/sequence_number_util.h"
 #include "rtc_base/random.h"
 
 namespace webrtc {
@@ -31,7 +31,7 @@ class CongestionWindow;
 class BbrBweSender : public BweSender {
  public:
   explicit BbrBweSender(BitrateObserver* observer, Clock* clock);
-  ~BbrBweSender() override;
+  virtual ~BbrBweSender();
   enum Mode {
     // Startup phase.
     STARTUP,
@@ -48,7 +48,7 @@ class BbrBweSender : public BweSender {
   };
 
   struct PacketStats {
-    PacketStats();
+    PacketStats() {}
     PacketStats(uint16_t sequence_number_,
                 int64_t last_sent_packet_send_time_ms_,
                 int64_t send_time_ms_,
@@ -58,9 +58,19 @@ class BbrBweSender : public BweSender {
                 size_t data_sent_bytes_,
                 size_t data_sent_before_last_sent_packet_bytes_,
                 size_t data_acked_bytes_,
-                size_t data_acked_before_last_acked_packet_bytes_);
-    PacketStats(const PacketStats&);
-
+                size_t data_acked_before_last_acked_packet_bytes_)
+        : sequence_number(sequence_number_),
+          last_sent_packet_send_time_ms(last_sent_packet_send_time_ms_),
+          send_time_ms(send_time_ms_),
+          ack_time_ms(ack_time_ms_),
+          last_acked_packet_ack_time_ms(last_acked_packet_ack_time_ms_),
+          payload_size_bytes(payload_size_bytes_),
+          data_sent_bytes(data_sent_bytes_),
+          data_sent_before_last_sent_packet_bytes(
+              data_sent_before_last_sent_packet_bytes_),
+          data_acked_bytes(data_acked_bytes_),
+          data_acked_before_last_acked_packet_bytes(
+              data_acked_before_last_acked_packet_bytes_) {}
     // Sequence number of this packet.
     uint16_t sequence_number;
     // Send time of the last sent packet at ack time of this packet.
@@ -119,10 +129,10 @@ class BbrBweSender : public BweSender {
 
   // Calculates and returns bandwidth sample as minimum between send rate and
   // ack rate, returns nothing if sample cannot be calculated.
-  absl::optional<int64_t> CalculateBandwidthSample(size_t data_sent,
-                                                   int64_t send_time_delta_ms,
-                                                   size_t data_acked,
-                                                   int64_t ack_time_delta_ms);
+  rtc::Optional<int64_t> CalculateBandwidthSample(size_t data_sent,
+                                                  int64_t send_time_delta_ms,
+                                                  size_t data_acked,
+                                                  int64_t ack_time_delta_ms);
 
   // Calculate and add bandwidth sample only for packets' sent during high gain
   // phase. Motivation of having a seperate bucket for high gain phase is to
@@ -164,7 +174,7 @@ class BbrBweSender : public BweSender {
 
   // First moment of time when data inflight decreased below
   // kMinimumCongestionWindow in PROBE_RTT mode.
-  absl::optional<int64_t> minimum_congestion_window_start_time_ms_;
+  rtc::Optional<int64_t> minimum_congestion_window_start_time_ms_;
 
   // First round when data inflight decreased below kMinimumCongestionWindow in
   // PROBE_RTT mode.
@@ -178,7 +188,7 @@ class BbrBweSender : public BweSender {
 
   // Send time of a packet sent first during high gain phase. Also serves as a
   // flag, holding value means that we are already in high gain.
-  absl::optional<int64_t> first_packet_send_time_during_high_gain_ms_;
+  rtc::Optional<int64_t> first_packet_send_time_during_high_gain_ms_;
 
   // Send time of a packet sent last during high gain phase.
   int64_t last_packet_send_time_during_high_gain_ms_;
@@ -216,11 +226,10 @@ class BbrBweSender : public BweSender {
 class BbrBweReceiver : public BweReceiver {
  public:
   explicit BbrBweReceiver(int flow_id);
-  ~BbrBweReceiver() override;
+  virtual ~BbrBweReceiver();
   void ReceivePacket(int64_t arrival_time_ms,
                      const MediaPacket& media_packet) override;
   FeedbackPacket* GetFeedback(int64_t now_ms) override;
-
  private:
   SimulatedClock clock_;
   std::vector<uint16_t> packet_feedbacks_;

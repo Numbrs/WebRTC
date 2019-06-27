@@ -28,6 +28,8 @@ class RtcEventLogFactoryInterface {
       RtcEventLog::EncodingType encoding_type) = 0;
 };
 
+std::unique_ptr<RtcEventLogFactoryInterface> CreateRtcEventLogFactory();
+
 }  // namespace webrtc
 
 #endif  // LOGGING_RTC_EVENT_LOG_RTC_EVENT_LOG_FACTORY_INTERFACE_H_

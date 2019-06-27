@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
-#include "rtc_base/numerics/safe_conversions.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -43,7 +42,7 @@ TEST_P(AudioEncoderFactoryTest, CanConstructAllSupportedEncoders) {
   auto supported_encoders = factory->GetSupportedEncoders();
   for (const auto& spec : supported_encoders) {
     auto info = factory->QueryAudioEncoder(spec.format);
-    auto encoder = factory->MakeAudioEncoder(127, spec.format, absl::nullopt);
+    auto encoder = factory->MakeAudioEncoder(127, spec.format);
     EXPECT_TRUE(encoder);
     EXPECT_EQ(encoder->SampleRateHz(), info->sample_rate_hz);
     EXPECT_EQ(encoder->NumChannels(), info->num_channels);
@@ -56,12 +55,11 @@ TEST_P(AudioEncoderFactoryTest, CanRunAllSupportedEncoders) {
   auto factory = GetParam();
   auto supported_encoders = factory->GetSupportedEncoders();
   for (const auto& spec : supported_encoders) {
-    auto encoder =
-        factory->MakeAudioEncoder(kTestPayloadType, spec.format, absl::nullopt);
+    auto encoder = factory->MakeAudioEncoder(kTestPayloadType, spec.format);
     EXPECT_TRUE(encoder);
     encoder->Reset();
-    const int num_samples = rtc::checked_cast<int>(
-        encoder->SampleRateHz() * encoder->NumChannels() / 100);
+    const int num_samples =
+        encoder->SampleRateHz() * encoder->NumChannels() / 100;
     rtc::Buffer out;
     rtc::BufferT<int16_t> audio;
     audio.SetData(num_samples, [](rtc::ArrayView<int16_t> audio) {
@@ -103,9 +101,9 @@ TEST_P(AudioEncoderFactoryTest, CanRunAllSupportedEncoders) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(BuiltinAudioEncoderFactoryTest,
-                         AudioEncoderFactoryTest,
-                         ::testing::Values(CreateBuiltinAudioEncoderFactory()));
+INSTANTIATE_TEST_CASE_P(BuiltinAudioEncoderFactoryTest,
+                        AudioEncoderFactoryTest,
+                        ::testing::Values(CreateBuiltinAudioEncoderFactory()));
 
 TEST(BuiltinAudioEncoderFactoryTest, SupportsTheExpectedFormats) {
   using ::testing::ElementsAreArray;
@@ -116,7 +114,6 @@ TEST(BuiltinAudioEncoderFactoryTest, SupportsTheExpectedFormats) {
 
   const std::vector<SdpAudioFormat> supported_formats = [&specs] {
     std::vector<SdpAudioFormat> formats;
-    formats.reserve(specs.size());
     for (const auto& spec : specs) {
       formats.push_back(spec.format);
     }
@@ -133,7 +130,9 @@ TEST(BuiltinAudioEncoderFactoryTest, SupportsTheExpectedFormats) {
 #ifdef WEBRTC_CODEC_ISAC
     {"isac", 32000, 1},
 #endif
+#ifdef WEBRTC_CODEC_G722
     {"G722", 8000, 1},
+#endif
 #ifdef WEBRTC_CODEC_ILBC
     {"ilbc", 8000, 1},
 #endif

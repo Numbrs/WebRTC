@@ -15,22 +15,22 @@ import android.os.HandlerThread;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.ArrayList;
 
 /**
  * Can be used to save the video frames to file.
  */
-public class VideoFileRenderer implements VideoSink {
+public class VideoFileRenderer implements VideoRenderer.Callbacks {
+  static {
+    System.loadLibrary("jingle_peerconnection_so");
+  }
+
   private static final String TAG = "VideoFileRenderer";
 
   private final HandlerThread renderThread;
+  private final Object handlerLock = new Object();
   private final Handler renderThreadHandler;
-  private final HandlerThread fileThread;
-  private final Handler fileThreadHandler;
   private final FileOutputStream videoOutFile;
   private final String outputFileName;
   private final int outputFileWidth;
@@ -39,7 +39,7 @@ public class VideoFileRenderer implements VideoSink {
   private final ByteBuffer outputFrameBuffer;
   private EglBase eglBase;
   private YuvConverter yuvConverter;
-  private int frameCount;
+  private ArrayList<ByteBuffer> rawFrames = new ArrayList<>();
 
   public VideoFileRenderer(String outputFile, int outputFileWidth, int outputFileHeight,
       final EglBase.Context sharedContext) throws IOException {
@@ -57,15 +57,11 @@ public class VideoFileRenderer implements VideoSink {
     videoOutFile = new FileOutputStream(outputFile);
     videoOutFile.write(
         ("YUV4MPEG2 C420 W" + outputFileWidth + " H" + outputFileHeight + " Ip F30:1 A1:1\n")
-            .getBytes(Charset.forName("US-ASCII")));
+            .getBytes());
 
-    renderThread = new HandlerThread(TAG + "RenderThread");
+    renderThread = new HandlerThread(TAG);
     renderThread.start();
     renderThreadHandler = new Handler(renderThread.getLooper());
-
-    fileThread = new HandlerThread(TAG + "FileThread");
-    fileThread.start();
-    fileThreadHandler = new Handler(fileThread.getLooper());
 
     ThreadUtils.invokeAtFrontUninterruptibly(renderThreadHandler, new Runnable() {
       @Override
@@ -79,56 +75,58 @@ public class VideoFileRenderer implements VideoSink {
   }
 
   @Override
-  public void onFrame(VideoFrame frame) {
-    frame.retain();
-    renderThreadHandler.post(() -> renderFrameOnRenderThread(frame));
+  public void renderFrame(final VideoRenderer.I420Frame frame) {
+    renderThreadHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        renderFrameOnRenderThread(frame);
+      }
+    });
   }
 
-  private void renderFrameOnRenderThread(VideoFrame frame) {
-    final VideoFrame.Buffer buffer = frame.getBuffer();
+  private void renderFrameOnRenderThread(VideoRenderer.I420Frame frame) {
+    final float frameAspectRatio = (float) frame.rotatedWidth() / (float) frame.rotatedHeight();
 
-    // If the frame is rotated, it will be applied after cropAndScale. Therefore, if the frame is
-    // rotated by 90 degrees, swap width and height.
-    final int targetWidth = frame.getRotation() % 180 == 0 ? outputFileWidth : outputFileHeight;
-    final int targetHeight = frame.getRotation() % 180 == 0 ? outputFileHeight : outputFileWidth;
+    final float[] rotatedSamplingMatrix =
+        RendererCommon.rotateTextureMatrix(frame.samplingMatrix, frame.rotationDegree);
+    final float[] layoutMatrix = RendererCommon.getLayoutMatrix(
+        false, frameAspectRatio, (float) outputFileWidth / outputFileHeight);
+    final float[] texMatrix = RendererCommon.multiplyMatrices(rotatedSamplingMatrix, layoutMatrix);
 
-    final float frameAspectRatio = (float) buffer.getWidth() / (float) buffer.getHeight();
-    final float fileAspectRatio = (float) targetWidth / (float) targetHeight;
+    try {
+      ByteBuffer buffer = nativeCreateNativeByteBuffer(outputFrameSize);
+      if (!frame.yuvFrame) {
+        yuvConverter.convert(outputFrameBuffer, outputFileWidth, outputFileHeight, outputFileWidth,
+            frame.textureId, texMatrix);
 
-    // Calculate cropping to equalize the aspect ratio.
-    int cropWidth = buffer.getWidth();
-    int cropHeight = buffer.getHeight();
-    if (fileAspectRatio > frameAspectRatio) {
-      cropHeight = (int) (cropHeight * (frameAspectRatio / fileAspectRatio));
-    } else {
-      cropWidth = (int) (cropWidth * (fileAspectRatio / frameAspectRatio));
-    }
+        int stride = outputFileWidth;
+        byte[] data = outputFrameBuffer.array();
+        int offset = outputFrameBuffer.arrayOffset();
 
-    final int cropX = (buffer.getWidth() - cropWidth) / 2;
-    final int cropY = (buffer.getHeight() - cropHeight) / 2;
+        // Write Y
+        buffer.put(data, offset, outputFileWidth * outputFileHeight);
 
-    final VideoFrame.Buffer scaledBuffer =
-        buffer.cropAndScale(cropX, cropY, cropWidth, cropHeight, targetWidth, targetHeight);
-    frame.release();
+        // Write U
+        for (int r = outputFileHeight; r < outputFileHeight * 3 / 2; ++r) {
+          buffer.put(data, offset + r * stride, stride / 2);
+        }
 
-    final VideoFrame.I420Buffer i420 = scaledBuffer.toI420();
-    scaledBuffer.release();
+        // Write V
+        for (int r = outputFileHeight; r < outputFileHeight * 3 / 2; ++r) {
+          buffer.put(data, offset + r * stride + stride / 2, stride / 2);
+        }
+      } else {
+        nativeI420Scale(frame.yuvPlanes[0], frame.yuvStrides[0], frame.yuvPlanes[1],
+            frame.yuvStrides[1], frame.yuvPlanes[2], frame.yuvStrides[2], frame.width, frame.height,
+            outputFrameBuffer, outputFileWidth, outputFileHeight);
 
-    fileThreadHandler.post(() -> {
-      YuvHelper.I420Rotate(i420.getDataY(), i420.getStrideY(), i420.getDataU(), i420.getStrideU(),
-          i420.getDataV(), i420.getStrideV(), outputFrameBuffer, i420.getWidth(), i420.getHeight(),
-          frame.getRotation());
-      i420.release();
-
-      try {
-        videoOutFile.write("FRAME\n".getBytes(Charset.forName("US-ASCII")));
-        videoOutFile.write(
-            outputFrameBuffer.array(), outputFrameBuffer.arrayOffset(), outputFrameSize);
-      } catch (IOException e) {
-        throw new RuntimeException("Error writing video to disk", e);
+        buffer.put(outputFrameBuffer.array(), outputFrameBuffer.arrayOffset(), outputFrameSize);
       }
-      frameCount++;
-    });
+      buffer.rewind();
+      rawFrames.add(buffer);
+    } finally {
+      VideoRenderer.renderFrameDone(frame);
+    }
   }
 
   /**
@@ -136,30 +134,41 @@ public class VideoFileRenderer implements VideoSink {
    */
   public void release() {
     final CountDownLatch cleanupBarrier = new CountDownLatch(1);
-    renderThreadHandler.post(() -> {
-      yuvConverter.release();
-      eglBase.release();
-      renderThread.quit();
-      cleanupBarrier.countDown();
+    renderThreadHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        yuvConverter.release();
+        eglBase.release();
+        renderThread.quit();
+        cleanupBarrier.countDown();
+      }
     });
     ThreadUtils.awaitUninterruptibly(cleanupBarrier);
-    fileThreadHandler.post(() -> {
-      try {
-        videoOutFile.close();
-        Logging.d(TAG,
-            "Video written to disk as " + outputFileName + ". The number of frames is " + frameCount
-                + " and the dimensions of the frames are " + outputFileWidth + "x"
-                + outputFileHeight + ".");
-      } catch (IOException e) {
-        throw new RuntimeException("Error closing output file", e);
-      }
-      fileThread.quit();
-    });
     try {
-      fileThread.join();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      Logging.e(TAG, "Interrupted while waiting for the write to disk to complete.", e);
+      for (ByteBuffer buffer : rawFrames) {
+        videoOutFile.write("FRAME\n".getBytes());
+
+        byte[] data = new byte[outputFrameSize];
+        buffer.get(data);
+
+        videoOutFile.write(data);
+
+        nativeFreeNativeByteBuffer(buffer);
+      }
+      videoOutFile.close();
+      Logging.d(TAG, "Video written to disk as " + outputFileName + ". Number frames are "
+              + rawFrames.size() + " and the dimension of the frames are " + outputFileWidth + "x"
+              + outputFileHeight + ".");
+    } catch (IOException e) {
+      Logging.e(TAG, "Error writing video to disk", e);
     }
   }
+
+  public static native void nativeI420Scale(ByteBuffer srcY, int strideY, ByteBuffer srcU,
+      int strideU, ByteBuffer srcV, int strideV, int width, int height, ByteBuffer dst,
+      int dstWidth, int dstHeight);
+
+  public static native ByteBuffer nativeCreateNativeByteBuffer(int size);
+
+  public static native void nativeFreeNativeByteBuffer(ByteBuffer buffer);
 }

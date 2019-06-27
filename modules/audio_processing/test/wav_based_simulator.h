@@ -15,7 +15,7 @@
 
 #include "modules/audio_processing/test/audio_processing_simulator.h"
 
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 
 namespace webrtc {
 namespace test {
@@ -23,8 +23,7 @@ namespace test {
 // Used to perform an audio processing simulation from wav files.
 class WavBasedSimulator final : public AudioProcessingSimulator {
  public:
-  WavBasedSimulator(const SimulationSettings& settings,
-                    std::unique_ptr<AudioProcessingBuilder> ap_builder);
+  explicit WavBasedSimulator(const SimulationSettings& settings);
   ~WavBasedSimulator() override;
 
   // Processes the WAV input.

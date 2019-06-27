@@ -21,7 +21,6 @@ namespace webrtc {
 namespace rtcp {
 constexpr uint8_t SenderReport::kPacketType;
 constexpr size_t SenderReport::kMaxNumberOfReportBlocks;
-constexpr size_t SenderReport::kSenderBaseLength;
 //    Sender report (SR) (RFC 3550).
 //     0                   1                   2                   3
 //     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -47,10 +46,6 @@ SenderReport::SenderReport()
       sender_packet_count_(0),
       sender_octet_count_(0) {}
 
-SenderReport::SenderReport(const SenderReport&) = default;
-SenderReport::SenderReport(SenderReport&&) = default;
-SenderReport& SenderReport::operator=(const SenderReport&) = default;
-SenderReport& SenderReport::operator=(SenderReport&&) = default;
 SenderReport::~SenderReport() = default;
 
 bool SenderReport::Parse(const CommonHeader& packet) {
@@ -59,7 +54,7 @@ bool SenderReport::Parse(const CommonHeader& packet) {
   const uint8_t report_block_count = packet.count();
   if (packet.payload_size_bytes() <
       kSenderBaseLength + report_block_count * ReportBlock::kLength) {
-    RTC_LOG(LS_WARNING) << "Packet is too small to contain all the data.";
+    LOG(LS_WARNING) << "Packet is too small to contain all the data.";
     return false;
   }
   // Read SenderReport header.
@@ -92,7 +87,7 @@ size_t SenderReport::BlockLength() const {
 bool SenderReport::Create(uint8_t* packet,
                           size_t* index,
                           size_t max_length,
-                          PacketReadyCallback callback) const {
+                          RtcpPacket::PacketReadyCallback* callback) const {
   while (*index + BlockLength() > max_length) {
     if (!OnBufferFull(packet, index, callback))
       return false;
@@ -123,7 +118,7 @@ bool SenderReport::Create(uint8_t* packet,
 
 bool SenderReport::AddReportBlock(const ReportBlock& block) {
   if (report_blocks_.size() >= kMaxNumberOfReportBlocks) {
-    RTC_LOG(LS_WARNING) << "Max report blocks reached.";
+    LOG(LS_WARNING) << "Max report blocks reached.";
     return false;
   }
   report_blocks_.push_back(block);
@@ -132,8 +127,8 @@ bool SenderReport::AddReportBlock(const ReportBlock& block) {
 
 bool SenderReport::SetReportBlocks(std::vector<ReportBlock> blocks) {
   if (blocks.size() > kMaxNumberOfReportBlocks) {
-    RTC_LOG(LS_WARNING) << "Too many report blocks (" << blocks.size()
-                        << ") for sender report.";
+    LOG(LS_WARNING) << "Too many report blocks (" << blocks.size()
+                    << ") for sender report.";
     return false;
   }
   report_blocks_ = std::move(blocks);

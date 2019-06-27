@@ -1,5 +1,0 @@
-specific_include_rules = {
-  "task_queue_test\.h": [
-    "+test/gtest.h",
-  ],
-}

@@ -11,11 +11,11 @@
 #ifndef MODULES_PACING_BITRATE_PROBER_H_
 #define MODULES_PACING_BITRATE_PROBER_H_
 
-#include <stddef.h>
-#include <stdint.h>
 #include <queue>
 
-#include "api/transport/network_types.h"
+#include "modules/include/module_common_types.h"
+#include "rtc_base/basictypes.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 class RtcEventLog;
@@ -26,7 +26,6 @@ class BitrateProber {
  public:
   BitrateProber();
   explicit BitrateProber(RtcEventLog* event_log);
-  ~BitrateProber();
 
   void SetEnabled(bool enable);
 
@@ -42,7 +41,7 @@ class BitrateProber {
 
   // Create a cluster used to probe for |bitrate_bps| with |num_probes| number
   // of probes.
-  void CreateProbeCluster(int bitrate_bps, int64_t now_ms, int cluster_id);
+  void CreateProbeCluster(int bitrate_bps, int64_t now_ms);
 
   // Returns the number of milliseconds until the next probe should be sent to
   // get accurate probing.
@@ -87,6 +86,9 @@ class BitrateProber {
     int retries = 0;
   };
 
+  // Resets the state of the prober and clears any cluster/timing data tracked.
+  void ResetState(int64_t now_ms);
+
   int64_t GetNextProbeTime(const ProbeCluster& cluster);
 
   ProbingState probing_state_;
@@ -98,6 +100,9 @@ class BitrateProber {
 
   // Time the next probe should be sent when in kActive state.
   int64_t next_probe_time_ms_;
+
+  int next_cluster_id_;
+  RtcEventLog* const event_log_;
 };
 
 }  // namespace webrtc

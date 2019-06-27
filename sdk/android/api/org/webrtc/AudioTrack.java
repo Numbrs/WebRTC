@@ -20,13 +20,8 @@ public class AudioTrack extends MediaStreamTrack {
    *  0 to 10.
    */
   public void setVolume(double volume) {
-    nativeSetVolume(getNativeAudioTrack(), volume);
+    nativeSetVolume(super.nativeTrack, volume);
   }
 
-  /** Returns a pointer to webrtc::AudioTrackInterface. */
-  long getNativeAudioTrack() {
-    return getNativeMediaStreamTrack();
-  }
-
-  private static native void nativeSetVolume(long track, double volume);
+  private static native void nativeSetVolume(long nativeTrack, double volume);
 }

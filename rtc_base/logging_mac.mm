@@ -8,9 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "rtc_base/logging_mac.h"
+#include "rtc_base/logging.h"
 
 #import <Foundation/Foundation.h>
+
 
 namespace rtc {
 std::string DescriptionFromOSStatus(OSStatus err) {
@@ -18,5 +19,4 @@ std::string DescriptionFromOSStatus(OSStatus err) {
       [NSError errorWithDomain:NSOSStatusErrorDomain code:err userInfo:nil];
   return error.description.UTF8String;
 }
-
 }  // namespace rtc

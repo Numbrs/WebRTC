@@ -9,12 +9,8 @@
  */
 
 #include "system_wrappers/include/metrics.h"
-#include "test/gmock.h"
+#include "system_wrappers/include/metrics_default.h"
 #include "test/gtest.h"
-
-using ::testing::ElementsAre;
-using ::testing::IsEmpty;
-using ::testing::Pair;
 
 namespace webrtc {
 namespace {
@@ -26,6 +22,11 @@ void AddSparseSample(const std::string& name, int sample) {
 void AddSampleWithVaryingName(int index, const std::string& name, int sample) {
   RTC_HISTOGRAMS_COUNTS_100(index, name, sample);
 }
+#if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
+void AddSample(const std::string& name, int sample) {
+  RTC_HISTOGRAM_COUNTS_100(name, sample);
+}
+#endif  // RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
 }  // namespace
 
 class MetricsTest : public ::testing::Test {
@@ -33,13 +34,14 @@ class MetricsTest : public ::testing::Test {
   MetricsTest() {}
 
  protected:
-  void SetUp() override { metrics::Reset(); }
+  virtual void SetUp() {
+    metrics::Reset();
+  }
 };
 
 TEST_F(MetricsTest, InitiallyNoSamples) {
   EXPECT_EQ(0, metrics::NumSamples("NonExisting"));
   EXPECT_EQ(0, metrics::NumEvents("NonExisting", kSample));
-  EXPECT_THAT(metrics::Samples("NonExisting"), IsEmpty());
 }
 
 TEST_F(MetricsTest, RtcHistogramPercent_AddSample) {
@@ -47,7 +49,6 @@ TEST_F(MetricsTest, RtcHistogramPercent_AddSample) {
   RTC_HISTOGRAM_PERCENTAGE(kName, kSample);
   EXPECT_EQ(1, metrics::NumSamples(kName));
   EXPECT_EQ(1, metrics::NumEvents(kName, kSample));
-  EXPECT_THAT(metrics::Samples(kName), ElementsAre(Pair(kSample, 1)));
 }
 
 TEST_F(MetricsTest, RtcHistogramEnumeration_AddSample) {
@@ -55,7 +56,6 @@ TEST_F(MetricsTest, RtcHistogramEnumeration_AddSample) {
   RTC_HISTOGRAM_ENUMERATION(kName, kSample, kSample + 1);
   EXPECT_EQ(1, metrics::NumSamples(kName));
   EXPECT_EQ(1, metrics::NumEvents(kName, kSample));
-  EXPECT_THAT(metrics::Samples(kName), ElementsAre(Pair(kSample, 1)));
 }
 
 TEST_F(MetricsTest, RtcHistogramBoolean_AddSample) {
@@ -64,7 +64,6 @@ TEST_F(MetricsTest, RtcHistogramBoolean_AddSample) {
   RTC_HISTOGRAM_BOOLEAN(kName, kSample);
   EXPECT_EQ(1, metrics::NumSamples(kName));
   EXPECT_EQ(1, metrics::NumEvents(kName, kSample));
-  EXPECT_THAT(metrics::Samples(kName), ElementsAre(Pair(kSample, 1)));
 }
 
 TEST_F(MetricsTest, RtcHistogramCountsSparse_AddSample) {
@@ -72,7 +71,6 @@ TEST_F(MetricsTest, RtcHistogramCountsSparse_AddSample) {
   RTC_HISTOGRAM_COUNTS_SPARSE_100(kName, kSample);
   EXPECT_EQ(1, metrics::NumSamples(kName));
   EXPECT_EQ(1, metrics::NumEvents(kName, kSample));
-  EXPECT_THAT(metrics::Samples(kName), ElementsAre(Pair(kSample, 1)));
 }
 
 TEST_F(MetricsTest, RtcHistogramCounts_AddSample) {
@@ -80,20 +78,16 @@ TEST_F(MetricsTest, RtcHistogramCounts_AddSample) {
   RTC_HISTOGRAM_COUNTS_100(kName, kSample);
   EXPECT_EQ(1, metrics::NumSamples(kName));
   EXPECT_EQ(1, metrics::NumEvents(kName, kSample));
-  EXPECT_THAT(metrics::Samples(kName), ElementsAre(Pair(kSample, 1)));
 }
 
 TEST_F(MetricsTest, RtcHistogramCounts_AddMultipleSamples) {
   const std::string kName = "Counts200";
   const int kNumSamples = 10;
-  std::map<int, int> samples;
   for (int i = 1; i <= kNumSamples; ++i) {
     RTC_HISTOGRAM_COUNTS_200(kName, i);
     EXPECT_EQ(1, metrics::NumEvents(kName, i));
     EXPECT_EQ(i, metrics::NumSamples(kName));
-    samples[i] = 1;
   }
-  EXPECT_EQ(samples, metrics::Samples(kName));
 }
 
 TEST_F(MetricsTest, RtcHistogramsCounts_AddSample) {
@@ -106,9 +100,6 @@ TEST_F(MetricsTest, RtcHistogramsCounts_AddSample) {
   EXPECT_EQ(1, metrics::NumEvents("Name1", kSample + 0));
   EXPECT_EQ(1, metrics::NumEvents("Name2", kSample + 1));
   EXPECT_EQ(1, metrics::NumEvents("Name3", kSample + 2));
-  EXPECT_THAT(metrics::Samples("Name1"), ElementsAre(Pair(kSample + 0, 1)));
-  EXPECT_THAT(metrics::Samples("Name2"), ElementsAre(Pair(kSample + 1, 1)));
-  EXPECT_THAT(metrics::Samples("Name3"), ElementsAre(Pair(kSample + 2, 1)));
 }
 
 #if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
@@ -124,8 +115,13 @@ TEST_F(MetricsTest, RtcHistogramSparse_NonConstantNameWorks) {
   AddSparseSample("Sparse2", kSample);
   EXPECT_EQ(1, metrics::NumSamples("Sparse1"));
   EXPECT_EQ(1, metrics::NumSamples("Sparse2"));
-  EXPECT_THAT(metrics::Samples("Sparse1"), ElementsAre(Pair(kSample, 1)));
-  EXPECT_THAT(metrics::Samples("Sparse2"), ElementsAre(Pair(kSample, 1)));
 }
+
+#if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
+TEST_F(MetricsTest, RtcHistogram_FailsForNonConstantName) {
+  AddSample("ConstantName1", kSample);
+  EXPECT_DEATH(AddSample("NotConstantName1", kSample), "");
+}
+#endif
 
 }  // namespace webrtc

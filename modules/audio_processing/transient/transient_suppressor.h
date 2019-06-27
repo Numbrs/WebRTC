@@ -11,11 +11,12 @@
 #ifndef MODULES_AUDIO_PROCESSING_TRANSIENT_TRANSIENT_SUPPRESSOR_H_
 #define MODULES_AUDIO_PROCESSING_TRANSIENT_TRANSIENT_SUPPRESSOR_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include <deque>
 #include <memory>
+#include <set>
 
 #include "rtc_base/gtest_prod_util.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 

@@ -21,7 +21,7 @@ namespace videocapturemodule {
 class DeviceInfoIos : public DeviceInfoImpl {
  public:
   DeviceInfoIos();
-  ~DeviceInfoIos() override;
+  virtual ~DeviceInfoIos();
 
   // Implementation of DeviceInfoImpl.
   int32_t Init() override;

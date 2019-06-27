@@ -14,6 +14,8 @@
  * contains the normalized lattice filter routines (MA and AR) for iSAC codec
  *
  */
+#include "settings.h"
+#include "codec.h"
 
 #include <math.h>
 #include <memory.h>
@@ -21,9 +23,6 @@
 #ifdef WEBRTC_ANDROID
 #include <stdlib.h>
 #endif
-
-#include "modules/audio_coding/codecs/isac/main/source/settings.h"
-#include "modules/audio_coding/codecs/isac/main/source/codec.h"
 
 /* filter the signal using normalized lattice filter */
 /* MA filter */

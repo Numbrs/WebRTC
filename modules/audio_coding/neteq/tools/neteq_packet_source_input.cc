@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "modules/audio_coding/neteq/tools/rtc_event_log_source.h"
 #include "modules/audio_coding/neteq/tools/rtp_file_source.h"
 #include "rtc_base/checks.h"
 
@@ -21,14 +22,15 @@ namespace test {
 
 NetEqPacketSourceInput::NetEqPacketSourceInput() : next_output_event_ms_(0) {}
 
-absl::optional<int64_t> NetEqPacketSourceInput::NextPacketTime() const {
+rtc::Optional<int64_t> NetEqPacketSourceInput::NextPacketTime() const {
   return packet_
-             ? absl::optional<int64_t>(static_cast<int64_t>(packet_->time_ms()))
-             : absl::nullopt;
+             ? rtc::Optional<int64_t>(static_cast<int64_t>(packet_->time_ms()))
+             : rtc::Optional<int64_t>();
 }
 
-absl::optional<RTPHeader> NetEqPacketSourceInput::NextHeader() const {
-  return packet_ ? absl::optional<RTPHeader>(packet_->header()) : absl::nullopt;
+rtc::Optional<RTPHeader> NetEqPacketSourceInput::NextHeader() const {
+  return packet_ ? rtc::Optional<RTPHeader>(packet_->header())
+                 : rtc::Optional<RTPHeader>();
 }
 
 void NetEqPacketSourceInput::LoadNextPacket() {
@@ -59,16 +61,15 @@ std::unique_ptr<NetEqInput::PacketData> NetEqPacketSourceInput::PopPacket() {
 }
 
 NetEqRtpDumpInput::NetEqRtpDumpInput(const std::string& file_name,
-                                     const RtpHeaderExtensionMap& hdr_ext_map,
-                                     absl::optional<uint32_t> ssrc_filter)
-    : source_(RtpFileSource::Create(file_name, ssrc_filter)) {
+                                     const RtpHeaderExtensionMap& hdr_ext_map)
+    : source_(RtpFileSource::Create(file_name)) {
   for (const auto& ext_pair : hdr_ext_map) {
     source_->RegisterRtpHeaderExtension(ext_pair.second, ext_pair.first);
   }
   LoadNextPacket();
 }
 
-absl::optional<int64_t> NetEqRtpDumpInput::NextOutputEventTime() const {
+rtc::Optional<int64_t> NetEqRtpDumpInput::NextOutputEventTime() const {
   return next_output_event_ms_;
 }
 
@@ -77,11 +78,37 @@ void NetEqRtpDumpInput::AdvanceOutputEvent() {
     *next_output_event_ms_ += kOutputPeriodMs;
   }
   if (!NextPacketTime()) {
-    next_output_event_ms_ = absl::nullopt;
+    next_output_event_ms_ = rtc::Optional<int64_t>();
   }
 }
 
 PacketSource* NetEqRtpDumpInput::source() {
+  return source_.get();
+}
+
+NetEqEventLogInput::NetEqEventLogInput(const std::string& file_name,
+                                       const RtpHeaderExtensionMap& hdr_ext_map)
+    : source_(RtcEventLogSource::Create(file_name)) {
+  for (const auto& ext_pair : hdr_ext_map) {
+    source_->RegisterRtpHeaderExtension(ext_pair.second, ext_pair.first);
+  }
+  LoadNextPacket();
+  AdvanceOutputEvent();
+}
+
+rtc::Optional<int64_t> NetEqEventLogInput::NextOutputEventTime() const {
+  return rtc::Optional<int64_t>(next_output_event_ms_);
+}
+
+void NetEqEventLogInput::AdvanceOutputEvent() {
+  next_output_event_ms_ =
+      rtc::Optional<int64_t>(source_->NextAudioOutputEventMs());
+  if (*next_output_event_ms_ == std::numeric_limits<int64_t>::max()) {
+    next_output_event_ms_ = rtc::Optional<int64_t>();
+  }
+}
+
+PacketSource* NetEqEventLogInput::source() {
   return source_.get();
 }
 

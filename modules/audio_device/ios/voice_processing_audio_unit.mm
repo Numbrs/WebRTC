@@ -11,11 +11,10 @@
 #import "modules/audio_device/ios/voice_processing_audio_unit.h"
 
 #include "rtc_base/checks.h"
-#include "rtc_base/system/fallthrough.h"
 #include "system_wrappers/include/metrics.h"
 
-#import "sdk/objc/base//RTCLogging.h"
-#import "sdk/objc/components/audio/RTCAudioSessionConfiguration.h"
+#import "WebRTC/RTCLogging.h"
+#import "sdk/objc/Framework/Headers/WebRTC/RTCAudioSessionConfiguration.h"
 
 #if !defined(NDEBUG)
 static void LogStreamDescription(AudioStreamBasicDescription description) {
@@ -425,7 +424,7 @@ AudioStreamBasicDescription VoiceProcessingAudioUnit::GetFormat(
   // - avoid resampling in the I/O unit by using the hardware sample rate
   // - linear PCM => noncompressed audio data format with one frame per packet
   // - no need to specify interleaving since only mono is supported
-  AudioStreamBasicDescription format;
+  AudioStreamBasicDescription format = {0};
   RTC_DCHECK_EQ(1, kRTCAudioSessionPreferredNumberOfChannels);
   format.mSampleRate = sample_rate;
   format.mFormatID = kAudioFormatLinearPCM;
@@ -445,12 +444,12 @@ void VoiceProcessingAudioUnit::DisposeAudioUnit() {
       case kStarted:
         Stop();
         // Fall through.
-        RTC_FALLTHROUGH();
+        FALLTHROUGH();
       case kInitialized:
         Uninitialize();
         break;
       case kUninitialized:
-        RTC_FALLTHROUGH();
+        FALLTHROUGH();
       case kInitRequired:
         break;
     }

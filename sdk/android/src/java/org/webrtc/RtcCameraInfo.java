@@ -1,7 +1,6 @@
 package org.webrtc;
 
 import android.graphics.Rect;
-import android.support.annotation.Nullable;
 import android.util.Range;
 
 import java.util.List;
@@ -20,7 +19,7 @@ public interface RtcCameraInfo {
      *
      * @return the camera id.
      */
-    @Nullable String getCameraId();
+    String getCameraId();
 
     /**
      * Index of the camera. Used mostly in Camera1 to identify the camera.
@@ -141,21 +140,21 @@ public interface RtcCameraInfo {
      *
      * @return the best picture size.
      */
-    @Nullable Size getBestSize();
+    Size getBestSize();
 
     /**
      * Calculates the best fps size range available to be used in a capture format.
      *
      * @return the best fps range.
      */
-    @Nullable Range<Integer> getBestFpsRange();
+    Range<Integer> getBestFpsRange();
 
     /**
      * Creates a capture format with the best possible size and fps range.
      *
      * @return the best capture format.
      */
-    @Nullable CameraEnumerationAndroid.CaptureFormat getCaptureFormat();
+    CameraEnumerationAndroid.CaptureFormat getCaptureFormat();
 
     /**
      * Whether the autofocus fix should be used instead of continuous video focus.

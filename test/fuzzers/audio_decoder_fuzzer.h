@@ -12,7 +12,8 @@
 #define TEST_FUZZERS_AUDIO_DECODER_FUZZER_H_
 
 #include <stddef.h>
-#include <stdint.h>
+
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 

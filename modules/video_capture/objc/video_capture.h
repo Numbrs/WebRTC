@@ -11,8 +11,8 @@
 #ifndef MODULES_VIDEO_CAPTURE_OBJC_VIDEO_CAPTURE_H_
 #define MODULES_VIDEO_CAPTURE_OBJC_VIDEO_CAPTURE_H_
 
-#include "api/scoped_refptr.h"
 #include "modules/video_capture/video_capture_impl.h"
+#include "rtc_base/scoped_ref_ptr.h"
 
 @class RTCVideoCaptureIosObjC;
 
@@ -21,7 +21,7 @@ namespace videocapturemodule {
 class VideoCaptureIos : public VideoCaptureImpl {
  public:
   VideoCaptureIos();
-  ~VideoCaptureIos() override;
+  virtual ~VideoCaptureIos();
 
   static rtc::scoped_refptr<VideoCaptureModule> Create(
       const char* device_unique_id_utf8);

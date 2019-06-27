@@ -10,7 +10,6 @@
 
 #import "ARDSettingsViewController.h"
 #import "ARDSettingsModel.h"
-#import "RTCVideoCodecInfo+HumanReadable.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -24,6 +23,7 @@ typedef NS_ENUM(int, ARDSettingsSections) {
 typedef NS_ENUM(int, ARDAudioSettingsOptions) {
   ARDAudioSettingsAudioOnly = 0,
   ARDAudioSettingsCreateAecDump,
+  ARDAudioSettingsUseLevelController,
   ARDAudioSettingsUseManualAudioConfig,
 };
 
@@ -62,7 +62,7 @@ typedef NS_ENUM(int, ARDAudioSettingsOptions) {
   return [_settingsModel availableVideoResolutions];
 }
 
-- (NSArray<RTCVideoCodecInfo *> *)videoCodecArray {
+- (NSArray<NSString *> *)videoCodecArray {
   return [_settingsModel availableVideoCodecs];
 }
 
@@ -91,7 +91,7 @@ typedef NS_ENUM(int, ARDAudioSettingsOptions) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
   switch (section) {
     case ARDSettingsSectionAudioSettings:
-      return 3;
+      return 4;
     case ARDSettingsSectionVideoResolution:
       return self.videoResolutionArray.count;
     case ARDSettingsSectionVideoCodec:
@@ -214,9 +214,9 @@ updateListSelectionAtIndexPath:(NSIndexPath *)indexPath
     cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
                                   reuseIdentifier:dequeueIdentifier];
   }
-  RTCVideoCodecInfo *codec = self.videoCodecArray[indexPath.row];
-  cell.textLabel.text = [codec humanReadableDescription];
-  if ([codec isEqualToCodecInfo:[_settingsModel currentVideoCodecSettingFromStore]]) {
+  NSString *codec = self.videoCodecArray[indexPath.row];
+  cell.textLabel.text = codec;
+  if ([codec isEqualToString:[_settingsModel currentVideoCodecSettingFromStore]]) {
     cell.accessoryType = UITableViewCellAccessoryCheckmark;
   } else {
     cell.accessoryType = UITableViewCellAccessoryNone;
@@ -231,7 +231,7 @@ updateListSelectionAtIndexPath:(NSIndexPath *)indexPath
     updateListSelectionAtIndexPath:indexPath
         inSection:ARDSettingsSectionVideoCodec];
 
-  RTCVideoCodecInfo *videoCodec = self.videoCodecArray[indexPath.row];
+  NSString *videoCodec = self.videoCodecArray[indexPath.row];
   [_settingsModel storeVideoCodecSetting:videoCodec];
 }
 
@@ -318,6 +318,8 @@ updateListSelectionAtIndexPath:(NSIndexPath *)indexPath
       return @"Audio only";
     case ARDAudioSettingsCreateAecDump:
       return @"Create AecDump";
+    case ARDAudioSettingsUseLevelController:
+      return @"Use level controller";
     case ARDAudioSettingsUseManualAudioConfig:
       return @"Use manual audio config";
     default:
@@ -331,6 +333,8 @@ updateListSelectionAtIndexPath:(NSIndexPath *)indexPath
       return [_settingsModel currentAudioOnlySettingFromStore];
     case ARDAudioSettingsCreateAecDump:
       return [_settingsModel currentCreateAecDumpSettingFromStore];
+    case ARDAudioSettingsUseLevelController:
+      return [_settingsModel currentUseLevelControllerSettingFromStore];
     case ARDAudioSettingsUseManualAudioConfig:
       return [_settingsModel currentUseManualAudioConfigSettingFromStore];
     default:
@@ -346,6 +350,10 @@ updateListSelectionAtIndexPath:(NSIndexPath *)indexPath
     }
     case ARDAudioSettingsCreateAecDump: {
       [_settingsModel storeCreateAecDumpSetting:sender.isOn];
+      break;
+    }
+    case ARDAudioSettingsUseLevelController: {
+      [_settingsModel storeUseLevelControllerSetting:sender.isOn];
       break;
     }
     case ARDAudioSettingsUseManualAudioConfig: {

@@ -58,7 +58,7 @@ bool VCMDecodingState::IsOldFrame(const VCMFrameBuffer* frame) const {
   assert(frame != NULL);
   if (in_initial_state_)
     return false;
-  return !IsNewerTimestamp(frame->Timestamp(), time_stamp_);
+  return !IsNewerTimestamp(frame->TimeStamp(), time_stamp_);
 }
 
 bool VCMDecodingState::IsOldPacket(const VCMPacket* packet) const {
@@ -73,7 +73,7 @@ void VCMDecodingState::SetState(const VCMFrameBuffer* frame) {
   if (!UsingFlexibleMode(frame))
     UpdateSyncState(frame);
   sequence_num_ = static_cast<uint16_t>(frame->GetHighSeqNum());
-  time_stamp_ = frame->Timestamp();
+  time_stamp_ = frame->TimeStamp();
   picture_id_ = frame->PictureId();
   temporal_id_ = frame->TemporalId();
   tl0_pic_id_ = frame->Tl0PicId();
@@ -81,15 +81,15 @@ void VCMDecodingState::SetState(const VCMFrameBuffer* frame) {
   for (const NaluInfo& nalu : frame->GetNaluInfos()) {
     if (nalu.type == H264::NaluType::kPps) {
       if (nalu.pps_id < 0) {
-        RTC_LOG(LS_WARNING) << "Received pps without pps id.";
+        LOG(LS_WARNING) << "Received pps without pps id.";
       } else if (nalu.sps_id < 0) {
-        RTC_LOG(LS_WARNING) << "Received pps without sps id.";
+        LOG(LS_WARNING) << "Received pps without sps id.";
       } else {
         received_pps_[nalu.pps_id] = nalu.sps_id;
       }
     } else if (nalu.type == H264::NaluType::kSps) {
       if (nalu.sps_id < 0) {
-        RTC_LOG(LS_WARNING) << "Received sps without sps id.";
+        LOG(LS_WARNING) << "Received sps without sps id.";
       } else {
         received_sps_.insert(nalu.sps_id);
       }
@@ -143,7 +143,7 @@ bool VCMDecodingState::UpdateEmptyFrame(const VCMFrameBuffer* frame) {
     // Continuous empty packets or continuous frames can be dropped if we
     // advance the sequence number.
     sequence_num_ = frame->GetHighSeqNum();
-    time_stamp_ = frame->Timestamp();
+    time_stamp_ = frame->TimeStamp();
     return true;
   }
   return false;
@@ -295,8 +295,8 @@ bool VCMDecodingState::UsingFlexibleMode(const VCMFrameBuffer* frame) const {
       frame->CodecSpecific()->codecType == kVideoCodecVP9 &&
       frame->CodecSpecific()->codecSpecific.VP9.flexible_mode;
   if (is_flexible_mode && frame->PictureId() == kNoPictureId) {
-    RTC_LOG(LS_WARNING) << "Frame is marked as using flexible mode but no"
-                        << "picture id is set.";
+    LOG(LS_WARNING) << "Frame is marked as using flexible mode but no"
+                    << "picture id is set.";
     return false;
   }
   return is_flexible_mode;
@@ -326,16 +326,16 @@ bool VCMDecodingState::HaveSpsAndPps(const std::vector<NaluInfo>& nalus) const {
     switch (nalu.type) {
       case H264::NaluType::kPps:
         if (nalu.pps_id < 0) {
-          RTC_LOG(LS_WARNING) << "Received pps without pps id.";
+          LOG(LS_WARNING) << "Received pps without pps id.";
         } else if (nalu.sps_id < 0) {
-          RTC_LOG(LS_WARNING) << "Received pps without sps id.";
+          LOG(LS_WARNING) << "Received pps without sps id.";
         } else {
           new_pps[nalu.pps_id] = nalu.sps_id;
         }
         break;
       case H264::NaluType::kSps:
         if (nalu.sps_id < 0) {
-          RTC_LOG(LS_WARNING) << "Received sps without sps id.";
+          LOG(LS_WARNING) << "Received sps without sps id.";
         } else {
           new_sps.insert(nalu.sps_id);
         }

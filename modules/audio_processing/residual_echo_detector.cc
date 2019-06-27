@@ -13,11 +13,9 @@
 #include <algorithm>
 #include <numeric>
 
-#include "absl/types/optional.h"
 #include "modules/audio_processing/audio_buffer.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
-#include "rtc_base/atomic_ops.h"
-#include "rtc_base/checks.h"
+#include "rtc_base/atomicops.h"
 #include "rtc_base/logging.h"
 #include "system_wrappers/include/metrics.h"
 
@@ -92,7 +90,7 @@ void ResidualEchoDetector::AnalyzeCaptureAudio(
   }
 
   // Get the next render value.
-  const absl::optional<float> buffered_render_power = render_buffer_.Pop();
+  const rtc::Optional<float> buffered_render_power = render_buffer_.Pop();
   if (!buffered_render_power) {
     // This can happen in a few cases: at the start of a call, due to a glitch
     // or due to clock drift. The excess capture value will be ignored.
@@ -143,20 +141,19 @@ void ResidualEchoDetector::AnalyzeCaptureAudio(
         read_index -= kLookbackFrames;
       }
       RTC_DCHECK_LT(read_index, render_power_.size());
-      RTC_LOG_F(LS_ERROR) << "Echo detector internal state: {"
-                             "Echo likelihood: "
-                          << echo_likelihood_ << ", Best Delay: " << best_delay
-                          << ", Covariance: "
-                          << covariances_[best_delay].covariance()
-                          << ", Last capture power: " << capture_power
-                          << ", Capture mean: " << capture_mean
-                          << ", Capture_standard deviation: "
-                          << capture_std_deviation << ", Last render power: "
-                          << render_power_[read_index]
-                          << ", Render mean: " << render_power_mean_[read_index]
-                          << ", Render standard deviation: "
-                          << render_power_std_dev_[read_index]
-                          << ", Reliability: " << reliability_ << "}";
+      LOG_F(LS_ERROR) << "Echo detector internal state: {"
+                      << "Echo likelihood: " << echo_likelihood_
+                      << ", Best Delay: " << best_delay << ", Covariance: "
+                      << covariances_[best_delay].covariance()
+                      << ", Last capture power: " << capture_power
+                      << ", Capture mean: " << capture_mean
+                      << ", Capture_standard deviation: "
+                      << capture_std_deviation
+                      << ", Last render power: " << render_power_[read_index]
+                      << ", Render mean: " << render_power_mean_[read_index]
+                      << ", Render standard deviation: "
+                      << render_power_std_dev_[read_index]
+                      << ", Reliability: " << reliability_ << "}";
       log_counter_++;
     }
   }
@@ -180,10 +177,7 @@ void ResidualEchoDetector::AnalyzeCaptureAudio(
                               : 0;
 }
 
-void ResidualEchoDetector::Initialize(int /*capture_sample_rate_hz*/,
-                                      int /*num_capture_channels*/,
-                                      int /*render_sample_rate_hz*/,
-                                      int /*num_render_channels*/) {
+void ResidualEchoDetector::Initialize() {
   render_buffer_.Clear();
   std::fill(render_power_.begin(), render_power_.end(), 0.f);
   std::fill(render_power_mean_.begin(), render_power_mean_.end(), 0.f);
@@ -199,17 +193,12 @@ void ResidualEchoDetector::Initialize(int /*capture_sample_rate_hz*/,
   reliability_ = 0.f;
 }
 
-void EchoDetector::PackRenderAudioBuffer(AudioBuffer* audio,
-                                         std::vector<float>* packed_buffer) {
+void ResidualEchoDetector::PackRenderAudioBuffer(
+    AudioBuffer* audio,
+    std::vector<float>* packed_buffer) {
   packed_buffer->clear();
   packed_buffer->insert(packed_buffer->end(), audio->channels_f()[0],
                         audio->channels_f()[0] + audio->num_frames());
 }
 
-EchoDetector::Metrics ResidualEchoDetector::GetMetrics() const {
-  EchoDetector::Metrics metrics;
-  metrics.echo_likelihood = echo_likelihood_;
-  metrics.echo_likelihood_recent_max = recent_likelihood_max_.max();
-  return metrics;
-}
 }  // namespace webrtc

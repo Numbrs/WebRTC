@@ -48,17 +48,14 @@ public class SurfaceViewRendererOnMeasureTest {
   /**
    * Returns a dummy YUV frame.
    */
-  static VideoFrame createFrame(int width, int height, int rotationDegree) {
+  static VideoRenderer.I420Frame createFrame(int width, int height, int rotationDegree) {
     final int[] yuvStrides = new int[] {width, (width + 1) / 2, (width + 1) / 2};
     final int[] yuvHeights = new int[] {height, (height + 1) / 2, (height + 1) / 2};
     final ByteBuffer[] yuvPlanes = new ByteBuffer[3];
     for (int i = 0; i < 3; ++i) {
       yuvPlanes[i] = ByteBuffer.allocateDirect(yuvStrides[i] * yuvHeights[i]);
     }
-    final VideoFrame.I420Buffer buffer =
-        JavaI420Buffer.wrap(width, height, yuvPlanes[0], yuvStrides[0], yuvPlanes[1], yuvStrides[1],
-            yuvPlanes[2], yuvStrides[2], null /* releaseCallback */);
-    return new VideoFrame(buffer, rotationDegree, 0 /* timestamp */);
+    return new VideoRenderer.I420Frame(width, height, rotationDegree, yuvStrides, yuvPlanes, 0);
   }
 
   /**
@@ -137,8 +134,6 @@ public class SurfaceViewRendererOnMeasureTest {
       private int frameHeight;
       private int rotation;
 
-      // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
-      @SuppressWarnings("NoSynchronizedMethodCheck")
       public synchronized void waitForFrameSize(int frameWidth, int frameHeight, int rotation)
           throws InterruptedException {
         while (this.frameWidth != frameWidth || this.frameHeight != frameHeight
@@ -147,12 +142,8 @@ public class SurfaceViewRendererOnMeasureTest {
         }
       }
 
-      @Override
       public void onFirstFrameRendered() {}
 
-      @Override
-      // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
-      @SuppressWarnings("NoSynchronizedMethodCheck")
       public synchronized void onFrameResolutionChanged(
           int frameWidth, int frameHeight, int rotation) {
         this.frameWidth = frameWidth;
@@ -170,13 +161,13 @@ public class SurfaceViewRendererOnMeasureTest {
       final int rotatedHeight = 720;
       final int unrotatedWidth = (rotationDegree % 180 == 0 ? rotatedWidth : rotatedHeight);
       final int unrotatedHeight = (rotationDegree % 180 == 0 ? rotatedHeight : rotatedWidth);
-      final VideoFrame frame = createFrame(unrotatedWidth, unrotatedHeight, rotationDegree);
-      assertEquals(rotatedWidth, frame.getRotatedWidth());
-      assertEquals(rotatedHeight, frame.getRotatedHeight());
+      final VideoRenderer.I420Frame frame =
+          createFrame(unrotatedWidth, unrotatedHeight, rotationDegree);
+      assertEquals(rotatedWidth, frame.rotatedWidth());
+      assertEquals(rotatedHeight, frame.rotatedHeight());
       final String frameDimensions =
           unrotatedWidth + "x" + unrotatedHeight + " with rotation " + rotationDegree;
-      surfaceViewRenderer.onFrame(frame);
-      frame.release();
+      surfaceViewRenderer.renderFrame(frame);
       rendererEvents.waitForFrameSize(unrotatedWidth, unrotatedHeight, rotationDegree);
 
       // Test forcing to zero size.

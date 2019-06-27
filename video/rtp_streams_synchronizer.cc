@@ -10,12 +10,12 @@
 
 #include "video/rtp_streams_synchronizer.h"
 
-#include "absl/types/optional.h"
 #include "call/syncable.h"
+#include "modules/video_coding/video_coding_impl.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/time_utils.h"
+#include "rtc_base/logging.h"
+#include "rtc_base/timeutils.h"
 #include "rtc_base/trace_event.h"
-#include "system_wrappers/include/rtp_to_ntp_estimator.h"
 
 namespace webrtc {
 namespace {
@@ -25,9 +25,10 @@ bool UpdateMeasurements(StreamSynchronization::Measurements* stream,
   stream->latest_timestamp = info.latest_received_capture_timestamp;
   stream->latest_receive_time_ms = info.latest_receive_time_ms;
   bool new_rtcp_sr = false;
-  if (!stream->rtp_to_ntp.UpdateMeasurements(
-          info.capture_time_ntp_secs, info.capture_time_ntp_frac,
-          info.capture_time_source_clock, &new_rtcp_sr)) {
+  if (!stream->rtp_to_ntp.UpdateMeasurements(info.capture_time_ntp_secs,
+                                             info.capture_time_ntp_frac,
+                                             info.capture_time_source_clock,
+                                             &new_rtcp_sr)) {
     return false;
   }
   return true;
@@ -42,8 +43,6 @@ RtpStreamsSynchronizer::RtpStreamsSynchronizer(Syncable* syncable_video)
   RTC_DCHECK(syncable_video);
   process_thread_checker_.DetachFromThread();
 }
-
-RtpStreamsSynchronizer::~RtpStreamsSynchronizer() = default;
 
 void RtpStreamsSynchronizer::ConfigureSync(Syncable* syncable_audio) {
   rtc::CritScope lock(&crit_);
@@ -64,7 +63,7 @@ int64_t RtpStreamsSynchronizer::TimeUntilNextProcess() {
   RTC_DCHECK_RUN_ON(&process_thread_checker_);
   const int64_t kSyncIntervalMs = 1000;
   return kSyncIntervalMs -
-         (rtc::TimeNanos() - last_sync_time_) / rtc::kNumNanosecsPerMillisec;
+      (rtc::TimeNanos() - last_sync_time_) / rtc::kNumNanosecsPerMillisec;
 }
 
 void RtpStreamsSynchronizer::Process() {
@@ -77,13 +76,13 @@ void RtpStreamsSynchronizer::Process() {
   }
   RTC_DCHECK(sync_.get());
 
-  absl::optional<Syncable::Info> audio_info = syncable_audio_->GetInfo();
+  rtc::Optional<Syncable::Info> audio_info = syncable_audio_->GetInfo();
   if (!audio_info || !UpdateMeasurements(&audio_measurement_, *audio_info)) {
     return;
   }
 
   int64_t last_video_receive_ms = video_measurement_.latest_receive_time_ms;
-  absl::optional<Syncable::Info> video_info = syncable_video_->GetInfo();
+  rtc::Optional<Syncable::Info> video_info = syncable_video_->GetInfo();
   if (!video_info || !UpdateMeasurements(&video_measurement_, *video_info)) {
     return;
   }
@@ -101,16 +100,18 @@ void RtpStreamsSynchronizer::Process() {
   }
 
   TRACE_COUNTER1("webrtc", "SyncCurrentVideoDelay",
-                 video_info->current_delay_ms);
+      video_info->current_delay_ms);
   TRACE_COUNTER1("webrtc", "SyncCurrentAudioDelay",
-                 audio_info->current_delay_ms);
+      audio_info->current_delay_ms);
   TRACE_COUNTER1("webrtc", "SyncRelativeDelay", relative_delay_ms);
   int target_audio_delay_ms = 0;
   int target_video_delay_ms = video_info->current_delay_ms;
   // Calculate the necessary extra audio delay and desired total video
   // delay to get the streams in sync.
-  if (!sync_->ComputeDelays(relative_delay_ms, audio_info->current_delay_ms,
-                            &target_audio_delay_ms, &target_video_delay_ms)) {
+  if (!sync_->ComputeDelays(relative_delay_ms,
+                            audio_info->current_delay_ms,
+                            &target_audio_delay_ms,
+                            &target_video_delay_ms)) {
     return;
   }
 
@@ -146,7 +147,7 @@ bool RtpStreamsSynchronizer::GetStreamSyncOffsetInMs(
     latest_video_ntp += time_to_render_ms;
 
   *stream_offset_ms = latest_audio_ntp - latest_video_ntp;
-  *estimated_freq_khz = video_measurement_.rtp_to_ntp.params()->frequency_khz;
+  *estimated_freq_khz = video_measurement_.rtp_to_ntp.params().frequency_khz;
   return true;
 }
 

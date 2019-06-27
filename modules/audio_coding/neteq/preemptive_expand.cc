@@ -10,11 +10,9 @@
 
 #include "modules/audio_coding/neteq/preemptive_expand.h"
 
-#include <algorithm>
+#include <algorithm>  // min, max
 
-#include "api/array_view.h"
-#include "modules/audio_coding/neteq/audio_multi_vector.h"
-#include "modules/audio_coding/neteq/time_stretch.h"
+#include "common_audio/signal_processing/include/signal_processing_library.h"
 
 namespace webrtc {
 
@@ -33,8 +31,7 @@ PreemptiveExpand::ReturnCodes PreemptiveExpand::Process(
       old_data_length >= input_length / num_channels_ - overlap_samples_) {
     // Length of input data too short to do preemptive expand. Simply move all
     // data from input to output.
-    output->PushBackInterleaved(
-        rtc::ArrayView<const int16_t>(input, input_length));
+    output->PushBackInterleaved(input, input_length);
     return kError;
   }
   const bool kFastMode = false;  // Fast mode is not available for PE Expand.
@@ -53,7 +50,8 @@ void PreemptiveExpand::SetParametersForPassiveSpeech(size_t len,
   // but we must ensure that best_correlation is not larger than the length of
   // the new data.
   // but we must ensure that best_correlation is not larger than the new data.
-  *peak_index = std::min(*peak_index, len - old_data_length_per_channel_);
+  *peak_index = std::min(*peak_index,
+                         len - old_data_length_per_channel_);
 }
 
 PreemptiveExpand::ReturnCodes PreemptiveExpand::CheckCriteriaAndStretch(
@@ -70,27 +68,27 @@ PreemptiveExpand::ReturnCodes PreemptiveExpand::CheckCriteriaAndStretch(
   // Check for strong correlation (>0.9 in Q14) and at least 15 ms new data,
   // or passive speech.
   if (((best_correlation > kCorrelationThreshold) &&
-       (old_data_length_per_channel_ <= fs_mult_120)) ||
+      (old_data_length_per_channel_ <= fs_mult_120)) ||
       !active_speech) {
     // Do accelerate operation by overlap add.
 
     // Set length of the first part, not to be modified.
-    size_t unmodified_length =
-        std::max(old_data_length_per_channel_, fs_mult_120);
+    size_t unmodified_length = std::max(old_data_length_per_channel_,
+                                        fs_mult_120);
     // Copy first part, including cross-fade region.
-    output->PushBackInterleaved(rtc::ArrayView<const int16_t>(
-        input, (unmodified_length + peak_index) * num_channels_));
+    output->PushBackInterleaved(
+        input, (unmodified_length + peak_index) * num_channels_);
     // Copy the last |peak_index| samples up to 15 ms to |temp_vector|.
     AudioMultiVector temp_vector(num_channels_);
-    temp_vector.PushBackInterleaved(rtc::ArrayView<const int16_t>(
+    temp_vector.PushBackInterleaved(
         &input[(unmodified_length - peak_index) * num_channels_],
-        peak_index * num_channels_));
+        peak_index * num_channels_);
     // Cross-fade |temp_vector| onto the end of |output|.
     output->CrossFade(temp_vector, peak_index);
     // Copy the last unmodified part, 15 ms + pitch period until the end.
-    output->PushBackInterleaved(rtc::ArrayView<const int16_t>(
+    output->PushBackInterleaved(
         &input[unmodified_length * num_channels_],
-        input_length - unmodified_length * num_channels_));
+        input_length - unmodified_length * num_channels_);
 
     if (active_speech) {
       return kSuccess;
@@ -99,8 +97,7 @@ PreemptiveExpand::ReturnCodes PreemptiveExpand::CheckCriteriaAndStretch(
     }
   } else {
     // Accelerate not allowed. Simply move all data from decoded to outData.
-    output->PushBackInterleaved(
-        rtc::ArrayView<const int16_t>(input, input_length));
+    output->PushBackInterleaved(input, input_length);
     return kNoStretch;
   }
 }
@@ -110,8 +107,8 @@ PreemptiveExpand* PreemptiveExpandFactory::Create(
     size_t num_channels,
     const BackgroundNoise& background_noise,
     size_t overlap_samples) const {
-  return new PreemptiveExpand(sample_rate_hz, num_channels, background_noise,
-                              overlap_samples);
+  return new PreemptiveExpand(
+      sample_rate_hz, num_channels, background_noise, overlap_samples);
 }
 
 }  // namespace webrtc

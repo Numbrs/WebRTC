@@ -11,25 +11,28 @@
 #ifndef MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_BWE_H_
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_BWE_H_
 
-#include <stddef.h>
-#include <stdint.h>
-#include <iterator>
 #include <list>
 #include <map>
-#include <utility>
+#include <sstream>
+#include <string>
 
 #include "modules/bitrate_controller/include/bitrate_controller.h"
-#include "modules/include/module.h"
 #include "modules/remote_bitrate_estimator/test/bwe_test_framework.h"
 #include "modules/remote_bitrate_estimator/test/packet.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "rtc_base/gtest_prod_util.h"
-#include "rtc_base/numerics/sequence_number_util.h"
-#include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 namespace testing {
 namespace bwe {
+
+// Overload map comparator.
+class SequenceNumberOlderThan {
+ public:
+  bool operator()(uint16_t seq_num_1, uint16_t seq_num_2) const {
+    return IsNewerSequenceNumber(seq_num_2, seq_num_1);
+  }
+};
 
 // Holds information for computing global packet loss.
 struct LossAccount {
@@ -46,39 +49,41 @@ struct LossAccount {
 // Holds only essential information about packets to be saved for
 // further use, e.g. for calculating packet loss and receiving rate.
 struct PacketIdentifierNode {
-  PacketIdentifierNode(int64_t unwrapped_sequence_number,
+  PacketIdentifierNode(uint16_t sequence_number,
                        int64_t send_time_ms,
                        int64_t arrival_time_ms,
                        size_t payload_size)
-      : unwrapped_sequence_number(unwrapped_sequence_number),
+      : sequence_number(sequence_number),
         send_time_ms(send_time_ms),
         arrival_time_ms(arrival_time_ms),
         payload_size(payload_size) {}
 
-  int64_t unwrapped_sequence_number;
+  uint16_t sequence_number;
   int64_t send_time_ms;
   int64_t arrival_time_ms;
   size_t payload_size;
 };
 
-typedef std::list<PacketIdentifierNode>::iterator PacketNodeIt;
+typedef std::list<PacketIdentifierNode*>::iterator PacketNodeIt;
 
 // FIFO implementation for a limited capacity set.
 // Used for keeping the latest arrived packets while avoiding duplicates.
 // Allows efficient insertion, deletion and search.
 class LinkedSet {
  public:
-  explicit LinkedSet(int capacity);
+  explicit LinkedSet(int capacity) : capacity_(capacity) {}
   ~LinkedSet();
 
   // If the arriving packet (identified by its sequence number) is already
-  // in the LinkedSet, move its Node to the head of the list.
-  // Else, add a PacketIdentifierNode n_ at the head of the list,
-  // calling RemoveTail() if the LinkedSet reached its maximum capacity.
+  // in the LinkedSet, move its Node to the head of the list. Else, create
+  // a PacketIdentifierNode n_ and then UpdateHead(n_), calling RemoveTail()
+  // if the LinkedSet reached its maximum capacity.
   void Insert(uint16_t sequence_number,
               int64_t send_time_ms,
               int64_t arrival_time_ms,
               size_t payload_size);
+
+  void Insert(PacketIdentifierNode packet_identifier);
 
   PacketNodeIt begin() { return list_.begin(); }
   PacketNodeIt end() { return list_.end(); }
@@ -87,10 +92,9 @@ class LinkedSet {
   size_t size() const { return list_.size(); }
   size_t capacity() const { return capacity_; }
 
-  // Return size of interval covering current set, i.e.:
-  // unwrapped newest seq number - unwrapped oldest seq number + 1
-  int64_t Range() const {
-    return empty() ? 0 : map_.rbegin()->first - map_.begin()->first + 1;
+  uint16_t OldestSeqNumber() const { return empty() ? 0 : map_.begin()->first; }
+  uint16_t NewestSeqNumber() const {
+    return empty() ? 0 : map_.rbegin()->first;
   }
 
   void Erase(PacketNodeIt node_it);
@@ -98,12 +102,11 @@ class LinkedSet {
  private:
   // Pop oldest element from the back of the list and remove it from the map.
   void RemoveTail();
+  // Add new element to the front of the list and insert it in the map.
+  void UpdateHead(PacketIdentifierNode* new_head);
   size_t capacity_;
-  // We want to keep track of the current oldest and newest sequence_numbers.
-  // To get strict weak ordering, we unwrap uint16_t into an int64_t.
-  SeqNumUnwrapper<uint16_t> unwrapper_;
-  std::map<int64_t, PacketNodeIt> map_;
-  std::list<PacketIdentifierNode> list_;
+  std::map<uint16_t, PacketNodeIt, SequenceNumberOlderThan> map_;
+  std::list<PacketIdentifierNode*> list_;
 };
 
 const int kMinBitrateKbps = 10;
@@ -113,7 +116,7 @@ class BweSender : public Module {
  public:
   BweSender() {}
   explicit BweSender(int bitrate_kbps) : bitrate_kbps_(bitrate_kbps) {}
-  ~BweSender() override {}
+  virtual ~BweSender() {}
 
   virtual int GetFeedbackIntervalMs() const = 0;
   virtual void GiveFeedback(const FeedbackPacket& feedback) = 0;
@@ -135,7 +138,7 @@ class BweReceiver {
 
   virtual void ReceivePacket(int64_t arrival_time_ms,
                              const MediaPacket& media_packet);
-  virtual FeedbackPacket* GetFeedback(int64_t now_ms);
+  virtual FeedbackPacket* GetFeedback(int64_t now_ms) { return NULL; }
 
   size_t GetSetCapacity() { return received_packets_.capacity(); }
   double BitrateWindowS() const { return rate_counter_.BitrateWindowS(); }
@@ -178,8 +181,7 @@ enum BandwidthEstimatorType {
   kBbrEstimator
 };
 
-const char* const bwe_names[] = {"Null",   "NADA", "REMB",
-                                 "GoogCc", "TCP",  "BBR"};
+const char* const bwe_names[] = {"Null", "NADA", "REMB", "GCC", "TCP", "BBR"};
 
 int64_t GetAbsSendTimeInMs(uint32_t abs_send_time);
 

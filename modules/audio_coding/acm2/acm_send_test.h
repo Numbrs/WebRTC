@@ -14,10 +14,9 @@
 #include <memory>
 #include <vector>
 
-#include "api/audio/audio_frame.h"
 #include "modules/audio_coding/include/audio_coding_module.h"
 #include "modules/audio_coding/neteq/tools/packet_source.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
@@ -42,9 +41,8 @@ class AcmSendTestOldApi : public AudioPacketizationCallback,
                      int payload_type,
                      int frame_size_samples);
 
-  // Registers an external send codec.
-  void RegisterExternalCodec(
-      std::unique_ptr<AudioEncoder> external_speech_encoder);
+  // Registers an external send codec. Returns true on success, false otherwise.
+  bool RegisterExternalCodec(AudioEncoder* external_speech_encoder);
 
   // Inherited from PacketSource.
   std::unique_ptr<Packet> NextPacket() override;

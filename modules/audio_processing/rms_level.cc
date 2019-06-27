@@ -54,7 +54,7 @@ void RmsLevel::Reset() {
   sum_square_ = 0.f;
   sample_count_ = 0;
   max_sum_square_ = 0.f;
-  block_size_ = absl::nullopt;
+  block_size_ = rtc::Optional<size_t>();
 }
 
 void RmsLevel::Analyze(rtc::ArrayView<const int16_t> data) {
@@ -88,7 +88,7 @@ int RmsLevel::Average() {
 
 RmsLevel::Levels RmsLevel::AverageAndPeak() {
   // Note that block_size_ should by design always be non-empty when
-  // sample_count_ != 0. Also, the * operator of absl::optional enforces this
+  // sample_count_ != 0. Also, the * operator of rtc::Optional enforces this
   // with a DCHECK.
   Levels levels = (sample_count_ == 0)
                       ? Levels{RmsLevel::kMinLevelDb, RmsLevel::kMinLevelDb}
@@ -99,9 +99,9 @@ RmsLevel::Levels RmsLevel::AverageAndPeak() {
 }
 
 void RmsLevel::CheckBlockSize(size_t block_size) {
-  if (block_size_ != block_size) {
+  if (block_size_ != rtc::Optional<size_t>(block_size)) {
     Reset();
-    block_size_ = block_size;
+    block_size_ = rtc::Optional<size_t>(block_size);
   }
 }
 }  // namespace webrtc

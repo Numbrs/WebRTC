@@ -11,15 +11,13 @@
 #ifndef MODULES_VIDEO_CODING_UTILITY_QUALITY_SCALER_H_
 #define MODULES_VIDEO_CODING_UTILITY_QUALITY_SCALER_H_
 
-#include <stddef.h>
-#include <stdint.h>
-#include <memory>
+#include <utility>
 
+#include "api/optional.h"
 #include "api/video_codecs/video_encoder.h"
-#include "rtc_base/experiments/quality_scaling_experiment.h"
-#include "rtc_base/numerics/moving_average.h"
+#include "common_types.h"  // NOLINT(build/include)
+#include "modules/video_coding/utility/moving_average.h"
 #include "rtc_base/sequenced_task_checker.h"
-#include "rtc_base/task_utils/repeating_task.h"
 
 namespace webrtc {
 
@@ -45,51 +43,44 @@ class AdaptationObserverInterface {
 // signal an intent to scale up or down.
 class QualityScaler {
  public:
-  // Construct a QualityScaler with given |thresholds| and |observer|.
+  // Construct a QualityScaler with a given |observer|.
   // This starts the quality scaler periodically checking what the average QP
   // has been recently.
   QualityScaler(AdaptationObserverInterface* observer,
+                VideoCodecType codec_type);
+  // If specific thresholds are desired these can be supplied as |thresholds|.
+  QualityScaler(AdaptationObserverInterface* observer,
                 VideoEncoder::QpThresholds thresholds);
   virtual ~QualityScaler();
-  // Should be called each time a frame is dropped at encoding.
-  void ReportDroppedFrameByMediaOpt();
-  void ReportDroppedFrameByEncoder();
+  // Should be called each time the encoder drops a frame
+  void ReportDroppedFrame();
   // Inform the QualityScaler of the last seen QP.
-  void ReportQp(int qp, int64_t time_sent_us);
+  void ReportQP(int qp);
 
-  // The following members declared protected for testing purposes.
+  // The following members declared protected for testing purposes
  protected:
   QualityScaler(AdaptationObserverInterface* observer,
                 VideoEncoder::QpThresholds thresholds,
-                int64_t sampling_period_ms);
+                int64_t sampling_period);
 
  private:
-  class QpSmoother;
-
-  void CheckQp();
+  class CheckQPTask;
+  void CheckQP();
   void ClearSamples();
-  void ReportQpLow();
-  void ReportQpHigh();
+  void ReportQPLow();
+  void ReportQPHigh();
   int64_t GetSamplingPeriodMs() const;
 
-  RepeatingTaskHandle check_qp_task_ RTC_GUARDED_BY(&task_checker_);
+  CheckQPTask* check_qp_task_ RTC_GUARDED_BY(&task_checker_);
   AdaptationObserverInterface* const observer_ RTC_GUARDED_BY(&task_checker_);
   rtc::SequencedTaskChecker task_checker_;
 
-  const VideoEncoder::QpThresholds thresholds_;
   const int64_t sampling_period_ms_;
   bool fast_rampup_ RTC_GUARDED_BY(&task_checker_);
-  rtc::MovingAverage average_qp_ RTC_GUARDED_BY(&task_checker_);
-  rtc::MovingAverage framedrop_percent_media_opt_
-      RTC_GUARDED_BY(&task_checker_);
-  rtc::MovingAverage framedrop_percent_all_ RTC_GUARDED_BY(&task_checker_);
+  MovingAverage average_qp_ RTC_GUARDED_BY(&task_checker_);
+  MovingAverage framedrop_percent_ RTC_GUARDED_BY(&task_checker_);
 
-  // Used by QualityScalingExperiment.
-  const bool experiment_enabled_;
-  QualityScalingExperiment::Config config_ RTC_GUARDED_BY(&task_checker_);
-  std::unique_ptr<QpSmoother> qp_smoother_high_ RTC_GUARDED_BY(&task_checker_);
-  std::unique_ptr<QpSmoother> qp_smoother_low_ RTC_GUARDED_BY(&task_checker_);
-  bool observed_enough_frames_ RTC_GUARDED_BY(&task_checker_);
+  VideoEncoder::QpThresholds thresholds_ RTC_GUARDED_BY(&task_checker_);
 };
 }  // namespace webrtc
 

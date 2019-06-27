@@ -26,9 +26,11 @@ typedef NS_ENUM(NSInteger, ARDSignalingChannelState) {
 @protocol ARDSignalingChannel;
 @protocol ARDSignalingChannelDelegate <NSObject>
 
-- (void)channel:(id<ARDSignalingChannel>)channel didChangeState:(ARDSignalingChannelState)state;
+- (void)channel:(id<ARDSignalingChannel>)channel
+    didChangeState:(ARDSignalingChannelState)state;
 
-- (void)channel:(id<ARDSignalingChannel>)channel didReceiveMessage:(ARDSignalingMessage *)message;
+- (void)channel:(id<ARDSignalingChannel>)channel
+    didReceiveMessage:(ARDSignalingMessage *)message;
 
 @end
 
@@ -40,9 +42,11 @@ typedef NS_ENUM(NSInteger, ARDSignalingChannelState) {
 @property(nonatomic, weak) id<ARDSignalingChannelDelegate> delegate;
 
 // Registers the channel for the given room and client id.
-- (void)registerForRoomId:(NSString *)roomId clientId:(NSString *)clientId;
+- (void)registerForRoomId:(NSString *)roomId
+                 clientId:(NSString *)clientId;
 
 // Sends signaling message over the channel.
 - (void)sendMessage:(ARDSignalingMessage *)message;
 
 @end
+

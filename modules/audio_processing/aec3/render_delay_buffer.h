@@ -12,10 +12,13 @@
 #define MODULES_AUDIO_PROCESSING_AEC3_RENDER_DELAY_BUFFER_H_
 
 #include <stddef.h>
+#include <array>
 #include <vector>
 
-#include "api/audio/echo_canceller3_config.h"
+#include "api/array_view.h"
+#include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/downsampled_render_buffer.h"
+#include "modules/audio_processing/aec3/fft_data.h"
 #include "modules/audio_processing/aec3/render_buffer.h"
 
 namespace webrtc {
@@ -24,49 +27,31 @@ namespace webrtc {
 // extracted with a specified delay.
 class RenderDelayBuffer {
  public:
-  enum class BufferingEvent {
-    kNone,
-    kRenderUnderrun,
-    kRenderOverrun,
-    kApiCallSkew
-  };
-
-  static RenderDelayBuffer* Create(const EchoCanceller3Config& config,
-                                   size_t num_bands);
+  static RenderDelayBuffer* Create(size_t num_bands);
   virtual ~RenderDelayBuffer() = default;
 
-  // Resets the buffer alignment.
+  // Resets the buffer data.
   virtual void Reset() = 0;
 
-  // Inserts a block into the buffer.
-  virtual BufferingEvent Insert(
-      const std::vector<std::vector<float>>& block) = 0;
+  // Inserts a block into the buffer and returns true if the insert is
+  // successful.
+  virtual bool Insert(const std::vector<std::vector<float>>& block) = 0;
 
   // Updates the buffers one step based on the specified buffer delay. Returns
-  // an enum indicating whether there was a special event that occurred.
-  virtual BufferingEvent PrepareCaptureProcessing() = 0;
+  // true if there was no overrun, otherwise returns false.
+  virtual bool UpdateBuffers() = 0;
 
-  // Sets the buffer delay and returns a bool indicating whether the delay
-  // changed.
-  virtual bool SetDelay(size_t delay) = 0;
+  // Sets the buffer delay.
+  virtual void SetDelay(size_t delay) = 0;
 
   // Gets the buffer delay.
   virtual size_t Delay() const = 0;
 
-  // Gets the buffer delay.
-  virtual size_t MaxDelay() const = 0;
-
   // Returns the render buffer for the echo remover.
-  virtual RenderBuffer* GetRenderBuffer() = 0;
+  virtual const RenderBuffer& GetRenderBuffer() const = 0;
 
   // Returns the downsampled render buffer.
   virtual const DownsampledRenderBuffer& GetDownsampledRenderBuffer() const = 0;
-
-  // Returns the maximum non calusal offset that can occur in the delay buffer.
-  static int DelayEstimatorOffset(const EchoCanceller3Config& config);
-
-  // Provides an optional external estimate of the audio buffer delay.
-  virtual void SetAudioBufferDelay(size_t delay_ms) = 0;
 };
 
 }  // namespace webrtc

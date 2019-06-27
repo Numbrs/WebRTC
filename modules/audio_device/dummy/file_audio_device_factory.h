@@ -11,7 +11,7 @@
 #ifndef AUDIO_DEVICE_FILE_AUDIO_DEVICE_FACTORY_H_
 #define AUDIO_DEVICE_FILE_AUDIO_DEVICE_FACTORY_H_
 
-#include <stdint.h>
+#include "common_types.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -23,7 +23,7 @@ class FileAudioDevice;
 // intended for test tools which use the audio device module.
 class FileAudioDeviceFactory {
  public:
-  static FileAudioDevice* CreateFileAudioDevice();
+  static FileAudioDevice* CreateFileAudioDevice(const int32_t id);
 
   // The input file must be a readable 48k stereo raw file. The output
   // file must be writable. The strings will be copied.

@@ -17,8 +17,6 @@ StreamConfig::StreamConfig() {}
 
 StreamConfig::~StreamConfig() {}
 
-StreamConfig::StreamConfig(const StreamConfig& other) = default;
-
 bool StreamConfig::operator==(const StreamConfig& other) const {
   return local_ssrc == other.local_ssrc && remote_ssrc == other.remote_ssrc &&
          rtx_ssrc == other.rtx_ssrc && rsid == other.rsid &&
@@ -26,16 +24,12 @@ bool StreamConfig::operator==(const StreamConfig& other) const {
          rtp_extensions == other.rtp_extensions && codecs == other.codecs;
 }
 
-bool StreamConfig::operator!=(const StreamConfig& other) const {
-  return !(*this == other);
-}
-
 StreamConfig::Codec::Codec(const std::string& payload_name,
                            int payload_type,
                            int rtx_payload_type)
-    : payload_name(payload_name),
-      payload_type(payload_type),
-      rtx_payload_type(rtx_payload_type) {}
+        : payload_name(payload_name),
+          payload_type(payload_type),
+          rtx_payload_type(rtx_payload_type) {}
 
 bool StreamConfig::Codec::operator==(const Codec& other) const {
   return payload_name == other.payload_name &&

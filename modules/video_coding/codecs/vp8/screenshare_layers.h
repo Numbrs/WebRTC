@@ -9,50 +9,52 @@
 #ifndef MODULES_VIDEO_CODING_CODECS_VP8_SCREENSHARE_LAYERS_H_
 #define MODULES_VIDEO_CODING_CODECS_VP8_SCREENSHARE_LAYERS_H_
 
-#include <map>
-#include <memory>
 #include <vector>
 
-#include "api/video_codecs/vp8_frame_config.h"
-#include "api/video_codecs/vp8_temporal_layers.h"
-#include "modules/video_coding/codecs/vp8/include/temporal_layers_checker.h"
+#include "modules/video_coding/codecs/vp8/temporal_layers.h"
 #include "modules/video_coding/utility/frame_dropper.h"
 #include "rtc_base/rate_statistics.h"
-#include "rtc_base/time_utils.h"
+#include "rtc_base/timeutils.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
 struct CodecSpecificInfoVP8;
 class Clock;
 
-class ScreenshareLayers : public Vp8TemporalLayers {
+class ScreenshareLayers : public TemporalLayers {
  public:
   static const double kMaxTL0FpsReduction;
   static const double kAcceptableTargetOvershoot;
   static const int kMaxFrameIntervalMs;
 
-  explicit ScreenshareLayers(int num_temporal_layers);
-  ~ScreenshareLayers() override;
-
-  bool SupportsEncoderFrameDropping() const override;
+  ScreenshareLayers(int num_temporal_layers,
+                    uint8_t initial_tl0_pic_idx,
+                    Clock* clock);
+  virtual ~ScreenshareLayers();
 
   // Returns the recommended VP8 encode flags needed. May refresh the decoder
   // and/or update the reference buffers.
-  Vp8FrameConfig UpdateLayerConfig(uint32_t rtp_timestamp) override;
+  TemporalLayers::FrameConfig UpdateLayerConfig(uint32_t timestamp) override;
 
-  // New target bitrate, per temporal layer.
-  void OnRatesUpdated(const std::vector<uint32_t>& bitrates_bps,
-                      int framerate_fps) override;
+  // Update state based on new bitrate target and incoming framerate.
+  // Returns the bitrate allocation for the active temporal layers.
+  std::vector<uint32_t> OnRatesUpdated(int bitrate_kbps,
+                                       int max_bitrate_kbps,
+                                       int framerate) override;
 
   // Update the encoder configuration with target bitrates or other parameters.
   // Returns true iff the configuration was actually modified.
-  bool UpdateConfiguration(Vp8EncoderConfig* cfg) override;
+  bool UpdateConfiguration(vpx_codec_enc_cfg_t* cfg) override;
 
-  void OnEncodeDone(uint32_t rtp_timestamp,
-                    size_t size_bytes,
-                    bool is_keyframe,
-                    int qp,
-                    CodecSpecificInfoVP8* vp8_info) override;
+  void PopulateCodecSpecific(bool base_layer_sync,
+                             const TemporalLayers::FrameConfig& tl_config,
+                             CodecSpecificInfoVP8* vp8_info,
+                             uint32_t timestamp) override;
+
+  void FrameEncoded(unsigned int size, int qp) override;
+
+  uint8_t Tl0PicIdx() const override;
 
  private:
   enum class TemporalLayerState : int { kDrop, kTl0, kTl1, kTl1Sync };
@@ -60,23 +62,24 @@ class ScreenshareLayers : public Vp8TemporalLayers {
   bool TimeToSync(int64_t timestamp) const;
   uint32_t GetCodecTargetBitrateKbps() const;
 
+  Clock* const clock_;
+
   int number_of_temporal_layers_;
+  bool last_base_layer_sync_;
+  uint8_t tl0_pic_idx_;
   int active_layer_;
   int64_t last_timestamp_;
   int64_t last_sync_timestamp_;
   int64_t last_emitted_tl0_timestamp_;
-  int64_t last_frame_time_ms_;
   rtc::TimestampWrapAroundHandler time_wrap_handler_;
   int min_qp_;
   int max_qp_;
   uint32_t max_debt_bytes_;
 
-  std::map<uint32_t, Vp8FrameConfig> pending_frame_configs_;
-
   // Configured max framerate.
-  absl::optional<uint32_t> target_framerate_;
+  rtc::Optional<uint32_t> target_framerate_;
   // Incoming framerate from capturer.
-  absl::optional<uint32_t> capture_framerate_;
+  rtc::Optional<uint32_t> capture_framerate_;
   // Tracks what framerate we actually encode, and drops frames on overshoot.
   RateStatistics encode_framerate_;
   bool bitrate_updated_;
@@ -95,7 +98,6 @@ class ScreenshareLayers : public Vp8TemporalLayers {
       kDropped,
       kReencoded,
       kQualityBoost,
-      kKeyFrame
     } state;
 
     int enhanced_max_qp;
@@ -119,9 +121,6 @@ class ScreenshareLayers : public Vp8TemporalLayers {
     int64_t tl0_target_bitrate_sum_ = 0;
     int64_t tl1_target_bitrate_sum_ = 0;
   } stats_;
-
-  // Optional utility used to verify reference validity.
-  std::unique_ptr<TemporalLayersChecker> checker_;
 };
 }  // namespace webrtc
 

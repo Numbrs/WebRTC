@@ -16,9 +16,9 @@
 #include <string>
 #include <vector>
 
-#include "api/data_channel_interface.h"
-#include "api/media_stream_interface.h"
-#include "api/peer_connection_interface.h"
+#include "api/datachannelinterface.h"
+#include "api/mediastreaminterface.h"
+#include "api/peerconnectioninterface.h"
 #include "examples/unityplugin/unity_plugin_apis.h"
 #include "examples/unityplugin/video_observer.h"
 
@@ -64,8 +64,10 @@ class SimplePeerConnection : public webrtc::PeerConnectionObserver,
   bool CreatePeerConnection(const char** turn_urls,
                             const int no_of_urls,
                             const char* username,
-                            const char* credential);
+                            const char* credential,
+                            bool is_receiver);
   void CloseDataChannel();
+  std::unique_ptr<cricket::VideoCapturer> OpenVideoCaptureDevice();
   void SetAudioControl();
 
   // PeerConnectionObserver implementation.
@@ -87,7 +89,7 @@ class SimplePeerConnection : public webrtc::PeerConnectionObserver,
 
   // CreateSessionDescriptionObserver implementation.
   void OnSuccess(webrtc::SessionDescriptionInterface* desc) override;
-  void OnFailure(webrtc::RTCError error) override;
+  void OnFailure(const std::string& error) override;
 
   // DataChannelObserver implementation.
   void OnStateChange() override;
@@ -125,7 +127,6 @@ class SimplePeerConnection : public webrtc::PeerConnectionObserver,
 
   bool is_mute_audio_ = false;
   bool is_record_audio_ = false;
-  bool mandatory_receive_ = false;
 
   // disallow copy-and-assign
   SimplePeerConnection(const SimplePeerConnection&) = delete;

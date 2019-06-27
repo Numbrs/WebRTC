@@ -66,9 +66,9 @@ def ParseAnaDump(dump_file_to_parse):
     first_time_stamp = None
     while True:
       event = GetNextMessageFromFile(file_to_parse)
-      if event is None:
+      if event == None:
         break
-      if first_time_stamp is None:
+      if first_time_stamp == None:
         first_time_stamp = event.timestamp
       if event.type == debug_dump_pb2.Event.ENCODER_RUNTIME_CONFIG:
         for decision in event.encoder_runtime_config.DESCRIPTOR.fields:
@@ -110,7 +110,7 @@ def main():
       action='append')
 
   options = parser.parse_args()[0]
-  if options.dump_file_to_parse is None:
+  if options.dump_file_to_parse == None:
     print "No dump file to parse is set.\n"
     parser.print_help()
     exit()

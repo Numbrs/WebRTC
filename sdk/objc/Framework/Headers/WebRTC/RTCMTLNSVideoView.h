@@ -8,4 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#import "components/renderer/metal/RTCMTLNSVideoView.h"
+#import <Cocoa/Cocoa.h>
+#import "WebRTC/RTCVideoRenderer.h"
+
+NS_AVAILABLE_MAC(10.11)
+@interface RTCMTLNSVideoView : NSView<RTCVideoRenderer>
++ (BOOL)isMetalAvailable;
+@end

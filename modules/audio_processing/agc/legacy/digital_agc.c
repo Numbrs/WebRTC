@@ -410,12 +410,10 @@ int32_t WebRtcAgc_ProcessDigital(DigitalAgc* stt,
     if (cur_level == 0) {
       zeros = 31;
     }
-    tmp32 = ((uint32_t)cur_level << zeros) & 0x7FFFFFFF;
+    tmp32 = (cur_level << zeros) & 0x7FFFFFFF;
     frac = (int16_t)(tmp32 >> 19);  // Q12.
-    // Interpolate between gainTable[zeros] and gainTable[zeros-1].
-    tmp32 = ((stt->gainTable[zeros - 1] - stt->gainTable[zeros]) *
-             (int64_t)frac) >> 12;
-    gains[k + 1] = stt->gainTable[zeros] + tmp32;
+    tmp32 = (stt->gainTable[zeros - 1] - stt->gainTable[zeros]) * frac;
+    gains[k + 1] = stt->gainTable[zeros] + (tmp32 >> 12);
 #ifdef WEBRTC_AGC_DEBUG_DUMP
     if (k == 0) {
       fprintf(stt->logFile, "%d\t%d\t%d\t%d\t%d\n", env[0], cur_level,
@@ -431,7 +429,7 @@ int32_t WebRtcAgc_ProcessDigital(DigitalAgc* stt,
   if (stt->capacitorFast == 0) {
     zeros_fast = 31;
   }
-  tmp32 = ((uint32_t)stt->capacitorFast << zeros_fast) & 0x7FFFFFFF;
+  tmp32 = (stt->capacitorFast << zeros_fast) & 0x7FFFFFFF;
   zeros_fast <<= 9;
   zeros_fast -= (int16_t)(tmp32 >> 22);
 
@@ -467,10 +465,9 @@ int32_t WebRtcAgc_ProcessDigital(DigitalAgc* stt,
 
   // Limit gain to avoid overload distortion
   for (k = 0; k < 10; k++) {
-    // Find a shift of gains[k + 1] such that it can be squared without
-    // overflow, but at least by 10 bits.
+    // To prevent wrap around
     zeros = 10;
-    if (gains[k + 1] > 47452159) {
+    if (gains[k + 1] > 47453132) {
       zeros = 16 - WebRtcSpl_NormW32(gains[k + 1]);
     }
     gain32 = (gains[k + 1] >> zeros) + 1;
@@ -505,16 +502,18 @@ int32_t WebRtcAgc_ProcessDigital(DigitalAgc* stt,
   // iterate over samples
   for (n = 0; n < L; n++) {
     for (i = 0; i < num_bands; ++i) {
-      out_tmp = (int64_t)out[i][n] * ((gain32 + 127) >> 7) >> 16;
+      tmp32 = out[i][n] * ((gain32 + 127) >> 7);
+      out_tmp = tmp32 >> 16;
       if (out_tmp > 4095) {
         out[i][n] = (int16_t)32767;
       } else if (out_tmp < -4096) {
         out[i][n] = (int16_t)-32768;
       } else {
-        tmp32 = ((int64_t)out[i][n] * (gain32 >> 4)) >> 16;
-        out[i][n] = (int16_t)tmp32;
+        tmp32 = out[i][n] * (gain32 >> 4);
+        out[i][n] = (int16_t)(tmp32 >> 16);
       }
     }
+    //
 
     gain32 += delta;
   }
@@ -575,15 +574,13 @@ int16_t WebRtcAgc_ProcessVad(AgcVad* state,      // (i) VAD state
                              const int16_t* in,  // (i) Speech signal
                              size_t nrSamples)   // (i) number of samples
 {
-  uint32_t nrg;
-  int32_t out, tmp32, tmp32b;
+  int32_t out, nrg, tmp32, tmp32b;
   uint16_t tmpU16;
   int16_t k, subfr, tmp16;
   int16_t buf1[8];
   int16_t buf2[4];
   int16_t HPstate;
   int16_t zeros, dB;
-  int64_t tmp64;
 
   // process in 10 sub frames of 1 ms (to save on memory)
   nrg = 0;
@@ -609,12 +606,7 @@ int16_t WebRtcAgc_ProcessVad(AgcVad* state,      // (i) VAD state
       out = buf2[k] + HPstate;
       tmp32 = 600 * out;
       HPstate = (int16_t)((tmp32 >> 10) - buf2[k]);
-
-      // Add 'out * out / 2**6' to 'nrg' in a non-overflowing
-      // way. Guaranteed to work as long as 'out * out / 2**6' fits in
-      // an int32_t.
-      nrg += out * (out / (1 << 6));
-      nrg += out * (out % (1 << 6)) / (1 << 6);
+      nrg += (out * out) >> 6;
     }
   }
   state->HPstate = HPstate;
@@ -639,7 +631,7 @@ int16_t WebRtcAgc_ProcessVad(AgcVad* state,      // (i) VAD state
   }
 
   // energy level (range {-32..30}) (Q10)
-  dB = (15 - zeros) * (1 << 11);
+  dB = (15 - zeros) << 11;
 
   // Update statistics
 
@@ -689,17 +681,17 @@ int16_t WebRtcAgc_ProcessVad(AgcVad* state,      // (i) VAD state
   tmp32 = WebRtcSpl_DivW32W16(tmp32, state->stdLongTerm);
   tmpU16 = (13 << 12);
   tmp32b = WEBRTC_SPL_MUL_16_U16(state->logRatio, tmpU16);
-  tmp64 = tmp32;
-  tmp64 += tmp32b >> 10;
-  tmp64 >>= 6;
+  tmp32 += tmp32b >> 10;
+
+  state->logRatio = (int16_t)(tmp32 >> 6);
 
   // limit
-  if (tmp64 > 2048) {
-    tmp64 = 2048;
-  } else if (tmp64 < -2048) {
-    tmp64 = -2048;
+  if (state->logRatio > 2048) {
+    state->logRatio = 2048;
   }
-  state->logRatio = (int16_t)tmp64;
+  if (state->logRatio < -2048) {
+    state->logRatio = -2048;
+  }
 
   return state->logRatio;  // Q10
 }

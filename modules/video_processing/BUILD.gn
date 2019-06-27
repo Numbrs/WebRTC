@@ -6,12 +6,12 @@
 # in the file PATENTS.  All contributing project authors may
 # be found in the AUTHORS file in the root of the source tree.
 
+import("//build/config/arm.gni")
 import("../../webrtc.gni")
 
 build_video_processing_sse2 = current_cpu == "x86" || current_cpu == "x64"
 
 rtc_static_library("video_processing") {
-  visibility = [ "*" ]
   sources = [
     "util/denoiser_filter.cc",
     "util/denoiser_filter_c.cc",
@@ -27,23 +27,22 @@ rtc_static_library("video_processing") {
   deps = [
     ":denoiser_filter",
     "..:module_api",
-    "../../api:scoped_refptr",
-    "../../api/video:video_frame",
-    "../../api/video:video_frame_i420",
     "../../common_audio",
     "../../common_video",
     "../../modules/utility",
-    "../../rtc_base:checks",
     "../../rtc_base:rtc_base_approved",
-    "../../rtc_base/system:arch",
-    "../../system_wrappers:cpu_features_api",
-    "//third_party/libyuv",
+    "../../system_wrappers",
   ]
   if (build_video_processing_sse2) {
     deps += [ ":video_processing_sse2" ]
   }
   if (rtc_build_with_neon) {
     deps += [ ":video_processing_neon" ]
+  }
+
+  if (!build_with_chromium && is_clang) {
+    # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+    suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
   }
 }
 
@@ -71,7 +70,12 @@ if (build_video_processing_sse2) {
       "../../system_wrappers",
     ]
 
-    if (is_posix || is_fuchsia) {
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
+
+    if (is_posix) {
       cflags = [ "-msse2" ]
     }
   }
@@ -99,19 +103,24 @@ if (rtc_include_tests) {
   rtc_source_set("video_processing_unittests") {
     testonly = true
 
+    # Skip restricting visibility on mobile platforms since the tests on those
+    # gets additional generated targets which would require many lines here to
+    # cover (which would be confusing to read and hard to maintain).
+    if (!is_android && !is_ios) {
+      visibility = [ "..:modules_unittests" ]
+    }
     sources = [
       "test/denoiser_test.cc",
     ]
     deps = [
-      ":denoiser_filter",
       ":video_processing",
-      "../../api:scoped_refptr",
-      "../../api/video:video_frame",
-      "../../api/video:video_frame_i420",
       "../../common_video:common_video",
-      "../../test:fileutils",
       "../../test:test_support",
       "../../test:video_test_common",
     ]
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
   }
 }

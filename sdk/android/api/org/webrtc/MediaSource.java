@@ -13,46 +13,21 @@ package org.webrtc;
 /** Java wrapper for a C++ MediaSourceInterface. */
 public class MediaSource {
   /** Tracks MediaSourceInterface.SourceState */
-  public enum State {
-    INITIALIZING,
-    LIVE,
-    ENDED,
-    MUTED;
+  public enum State { INITIALIZING, LIVE, ENDED, MUTED }
 
-    @CalledByNative("State")
-    static State fromNativeIndex(int nativeIndex) {
-      return values()[nativeIndex];
-    }
-  }
-
-  private long nativeSource;
+  final long nativeSource; // Package-protected for PeerConnectionFactory.
 
   public MediaSource(long nativeSource) {
     this.nativeSource = nativeSource;
   }
 
   public State state() {
-    checkMediaSourceExists();
-    return nativeGetState(nativeSource);
+    return nativeState(nativeSource);
   }
 
   public void dispose() {
-    checkMediaSourceExists();
     JniCommon.nativeReleaseRef(nativeSource);
-    nativeSource = 0;
   }
 
-  /** Returns a pointer to webrtc::MediaSourceInterface. */
-  protected long getNativeMediaSource() {
-    checkMediaSourceExists();
-    return nativeSource;
-  }
-
-  private void checkMediaSourceExists() {
-    if (nativeSource == 0) {
-      throw new IllegalStateException("MediaSource has been disposed.");
-    }
-  }
-
-  private static native State nativeGetState(long pointer);
+  private static native State nativeState(long pointer);
 }

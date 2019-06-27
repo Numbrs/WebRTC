@@ -44,28 +44,28 @@ public class CameraCapturerCompat extends CameraCapturer {
     @Override
     protected void createCameraSession(CameraSession.CreateSessionCallback createSessionCallback,
                                        CameraSession.Events events, Context applicationContext,
-                                       SurfaceTextureHelper surfaceTextureHelper,
+                                       SurfaceTextureHelper surfaceTextureHelper, MediaRecorder mediaRecorder,
                                        String cameraName, int width, int height, int framerate) {
 
         RtcCameraInfo camera = cameraProvider.getCamera(cameraName);
         if (useCamera2Api) {
             if (camera != null) {
                 session = Camera2Session.create(
-                        createSessionCallback, events, applicationContext, cameraManager,
-                        surfaceTextureHelper, camera, blackFramesFilterPixelsToCheck,
+                        createSessionCallback, events, applicationContext, cameraManager, surfaceTextureHelper,
+                        mediaRecorder, camera, blackFramesFilterPixelsToCheck,
                         blackFramesFilterBlackThreshold);
             } else {
                 session = Camera2Session.create(
-                        createSessionCallback, events, applicationContext, cameraManager,
-                        surfaceTextureHelper, cameraName, width, height, framerate);
+                        createSessionCallback, events, applicationContext, cameraManager, surfaceTextureHelper,
+                        mediaRecorder, cameraName, width, height, framerate);
             }
         } else if (camera != null) {
             session = Camera1Session.create(applicationContext, createSessionCallback, events, true,
-                    surfaceTextureHelper, camera);
+                    surfaceTextureHelper, mediaRecorder, camera);
 
         } else {
             session = Camera1Session.create(createSessionCallback, events, true, applicationContext,
-                    surfaceTextureHelper, Camera1Enumerator.getCameraIndex(cameraName),
+                    surfaceTextureHelper, mediaRecorder, Camera1Enumerator.getCameraIndex(cameraName),
                     width, height, framerate);
         }
     }

@@ -18,7 +18,7 @@
 #include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
 #include "modules/remote_bitrate_estimator/test/bwe.h"
 #include "modules/remote_bitrate_estimator/test/bwe_test_framework.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -33,7 +33,6 @@ class PacketSender;
 class PacketProcessorRunner {
  public:
   explicit PacketProcessorRunner(PacketProcessor* processor);
-  PacketProcessorRunner(const PacketProcessorRunner&);
   ~PacketProcessorRunner();
 
   bool RunsProcessor(const PacketProcessor* processor) const;
@@ -49,12 +48,11 @@ class PacketProcessorRunner {
 
 class Link : public PacketProcessorListener {
  public:
-  Link();
-  ~Link() override;
+  virtual ~Link() {}
 
-  void AddPacketProcessor(PacketProcessor* processor,
-                          ProcessorType type) override;
-  void RemovePacketProcessor(PacketProcessor* processor) override;
+  virtual void AddPacketProcessor(PacketProcessor* processor,
+                                  ProcessorType type);
+  virtual void RemovePacketProcessor(PacketProcessor* processor);
 
   void Run(int64_t run_for_ms, int64_t now_ms, Packets* packets);
 
@@ -135,7 +133,8 @@ class BweTest {
   Link uplink_;
 
  private:
-  void FindPacketsToProcess(const FlowIds& flow_ids, Packets* in, Packets* out);
+  void FindPacketsToProcess(const FlowIds& flow_ids, Packets* in,
+                            Packets* out);
   void GiveFeedbackToAffectedSenders(PacketReceiver* receiver);
 
   int64_t run_time_ms_;

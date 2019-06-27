@@ -11,7 +11,6 @@
 // Unit tests for test InputAudioFile class.
 
 #include "modules/audio_coding/neteq/tools/input_audio_file.h"
-#include "rtc_base/numerics/safe_conversions.h"
 
 #include "test/gtest.h"
 
@@ -23,7 +22,7 @@ TEST(TestInputAudioFile, DuplicateInterleaveSeparateSrcDst) {
   static const size_t kChannels = 2;
   int16_t input[kSamples];
   for (size_t i = 0; i < kSamples; ++i) {
-    input[i] = rtc::checked_cast<int16_t>(i);
+    input[i] = i;
   }
   int16_t output[kSamples * kChannels];
   InputAudioFile::DuplicateInterleaved(input, kSamples, kChannels, output);
@@ -42,7 +41,7 @@ TEST(TestInputAudioFile, DuplicateInterleaveSameSrcDst) {
   static const size_t kChannels = 5;
   int16_t input[kSamples * kChannels];
   for (size_t i = 0; i < kSamples; ++i) {
-    input[i] = rtc::checked_cast<int16_t>(i);
+    input[i] = i;
   }
   InputAudioFile::DuplicateInterleaved(input, kSamples, kChannels, input);
 

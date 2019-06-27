@@ -8,15 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <string.h>
 #include <utility>
 
-#include "api/array_view.h"
 #include "call/rtx_receive_stream.h"
 #include "modules/rtp_rtcp/include/receive_statistics.h"
-#include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 
 namespace webrtc {
@@ -31,7 +27,7 @@ RtxReceiveStream::RtxReceiveStream(
       media_ssrc_(media_ssrc),
       rtp_receive_statistics_(rtp_receive_statistics) {
   if (associated_payload_types_.empty()) {
-    RTC_LOG(LS_WARNING)
+    LOG(LS_WARNING)
         << "RtxReceiveStream created with empty payload type mapping.";
   }
 }
@@ -40,7 +36,10 @@ RtxReceiveStream::~RtxReceiveStream() = default;
 
 void RtxReceiveStream::OnRtpPacket(const RtpPacketReceived& rtx_packet) {
   if (rtp_receive_statistics_) {
-    rtp_receive_statistics_->OnRtpPacket(rtx_packet);
+    RTPHeader header;
+    rtx_packet.GetHeader(&header);
+    rtp_receive_statistics_->IncomingPacket(header, rtx_packet.size(),
+                                            false /* retransmitted */);
   }
   rtc::ArrayView<const uint8_t> payload = rtx_packet.payload();
 
@@ -50,9 +49,9 @@ void RtxReceiveStream::OnRtpPacket(const RtpPacketReceived& rtx_packet) {
 
   auto it = associated_payload_types_.find(rtx_packet.PayloadType());
   if (it == associated_payload_types_.end()) {
-    RTC_LOG(LS_VERBOSE) << "Unknown payload type "
-                        << static_cast<int>(rtx_packet.PayloadType())
-                        << " on rtx ssrc " << rtx_packet.Ssrc();
+    LOG(LS_VERBOSE) << "Unknown payload type "
+                    << static_cast<int>(rtx_packet.PayloadType())
+                    << " on rtx ssrc " << rtx_packet.Ssrc();
     return;
   }
   RtpPacketReceived media_packet;
@@ -64,7 +63,8 @@ void RtxReceiveStream::OnRtpPacket(const RtpPacketReceived& rtx_packet) {
   media_packet.set_recovered(true);
 
   // Skip the RTX header.
-  rtc::ArrayView<const uint8_t> rtx_payload = payload.subview(kRtxHeaderSize);
+  rtc::ArrayView<const uint8_t> rtx_payload =
+      payload.subview(kRtxHeaderSize);
 
   uint8_t* media_payload = media_packet.AllocatePayload(rtx_payload.size());
   RTC_DCHECK(media_payload != nullptr);

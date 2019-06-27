@@ -11,14 +11,10 @@
 #ifndef SYSTEM_WRAPPERS_INCLUDE_RTP_TO_NTP_ESTIMATOR_H_
 #define SYSTEM_WRAPPERS_INCLUDE_RTP_TO_NTP_ESTIMATOR_H_
 
-#include <stdint.h>
 #include <list>
 
-#include "absl/types/optional.h"
-#include "modules/include/module_common_types_public.h"
-#include "rtc_base/checks.h"
-#include "rtc_base/numerics/moving_median_filter.h"
 #include "system_wrappers/include/ntp_time.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 // Class for converting an RTP timestamp to the NTP domain in milliseconds.
@@ -31,24 +27,18 @@ class RtpToNtpEstimator {
 
   // RTP and NTP timestamp pair from a RTCP SR report.
   struct RtcpMeasurement {
-    RtcpMeasurement(uint32_t ntp_secs,
-                    uint32_t ntp_frac,
-                    int64_t unwrapped_timestamp);
+    RtcpMeasurement(uint32_t ntp_secs, uint32_t ntp_frac, uint32_t timestamp);
     bool IsEqual(const RtcpMeasurement& other) const;
 
     NtpTime ntp_time;
-    int64_t unwrapped_rtp_timestamp;
+    uint32_t rtp_timestamp;
   };
 
   // Estimated parameters from RTP and NTP timestamp pairs in |measurements_|.
   struct Parameters {
-    Parameters() : frequency_khz(0.0), offset_ms(0.0) {}
-
-    Parameters(double frequency_khz, double offset_ms)
-        : frequency_khz(frequency_khz), offset_ms(offset_ms) {}
-
-    double frequency_khz;
-    double offset_ms;
+    double frequency_khz = 0.0;
+    double offset_ms = 0.0;
+    bool calculated = false;
   };
 
   // Updates measurements with RTP/NTP timestamp pair from a RTCP sender report.
@@ -60,10 +50,9 @@ class RtpToNtpEstimator {
 
   // Converts an RTP timestamp to the NTP domain in milliseconds.
   // Returns true on success, false otherwise.
-  bool Estimate(int64_t rtp_timestamp, int64_t* ntp_timestamp_ms) const;
+  bool Estimate(int64_t rtp_timestamp, int64_t* rtp_timestamp_ms) const;
 
-  // Returns estimated rtp to ntp linear transform parameters.
-  const absl::optional<Parameters> params() const;
+  const Parameters& params() const { return params_; }
 
   static const int kMaxInvalidSamples = 3;
 
@@ -72,9 +61,15 @@ class RtpToNtpEstimator {
 
   int consecutive_invalid_samples_;
   std::list<RtcpMeasurement> measurements_;
-  absl::optional<Parameters> params_;
-  mutable TimestampUnwrapper unwrapper_;
+  Parameters params_;
 };
+
+// Returns:
+//  1: forward wrap around.
+//  0: no wrap around.
+// -1: backwards wrap around (i.e. reordering).
+int CheckForWrapArounds(uint32_t new_timestamp, uint32_t old_timestamp);
+
 }  // namespace webrtc
 
 #endif  // SYSTEM_WRAPPERS_INCLUDE_RTP_TO_NTP_ESTIMATOR_H_

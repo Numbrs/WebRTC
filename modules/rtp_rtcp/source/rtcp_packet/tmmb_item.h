@@ -11,8 +11,7 @@
 #ifndef MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_TMMB_ITEM_H_
 #define MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_TMMB_ITEM_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {

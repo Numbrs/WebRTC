@@ -11,18 +11,15 @@
 #ifndef AUDIO_DEVICE_AUDIO_DEVICE_DUMMY_H_
 #define AUDIO_DEVICE_AUDIO_DEVICE_DUMMY_H_
 
-#include <stdint.h>
+#include <stdio.h>
 
-#include "modules/audio_device/audio_device_buffer.h"
 #include "modules/audio_device/audio_device_generic.h"
-#include "modules/audio_device/include/audio_device.h"
-#include "modules/audio_device/include/audio_device_defines.h"
 
 namespace webrtc {
 
 class AudioDeviceDummy : public AudioDeviceGeneric {
  public:
-  AudioDeviceDummy() {}
+  AudioDeviceDummy(const int32_t id) {}
   virtual ~AudioDeviceDummy() {}
 
   // Retrieve the currently utilized audio layer
@@ -68,6 +65,10 @@ class AudioDeviceDummy : public AudioDeviceGeneric {
   int32_t StopRecording() override;
   bool Recording() const override;
 
+  // Microphone Automatic Gain Control (AGC)
+  int32_t SetAGC(bool enable) override;
+  bool AGC() const override;
+
   // Audio mixer initialization
   int32_t InitSpeaker() override;
   bool SpeakerIsInitialized() const override;
@@ -108,6 +109,7 @@ class AudioDeviceDummy : public AudioDeviceGeneric {
 
   // Delay information and control
   int32_t PlayoutDelay(uint16_t& delayMS) const override;
+  int32_t RecordingDelay(uint16_t& delayMS) const override;
 
   void AttachAudioBuffer(AudioDeviceBuffer* audioBuffer) override;
 };

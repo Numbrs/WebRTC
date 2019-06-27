@@ -15,18 +15,19 @@
 #include <string>
 #include <vector>
 
-#include "api/video/encoded_image.h"
 #include "api/video/video_frame.h"
-#include "api/video_codecs/video_codec.h"
-#include "rtc_base/system/rtc_export.h"
+#include "common_types.h"  // NOLINT(build/include)
+#include "common_video/include/video_frame.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
+class RTPFragmentationHeader;
 // TODO(pbos): Expose these through a public (root) header or change these APIs.
 struct CodecSpecificInfo;
 class VideoCodec;
 
-class RTC_EXPORT DecodedImageCallback {
+class DecodedImageCallback {
  public:
   virtual ~DecodedImageCallback() {}
 
@@ -35,20 +36,27 @@ class RTC_EXPORT DecodedImageCallback {
   // decode time excluding waiting time for any previous pending frame to
   // return. This is necessary for breaking positive feedback in the delay
   // estimation when the decoder has a single output buffer.
-  virtual int32_t Decoded(VideoFrame& decodedImage, int64_t decode_time_ms);
-
+  virtual int32_t Decoded(VideoFrame& decodedImage, int64_t decode_time_ms) {
+    // The default implementation ignores custom decode time value.
+    return Decoded(decodedImage);
+  }
   // TODO(sakal): Remove other implementations when upstream projects have been
   // updated.
   virtual void Decoded(VideoFrame& decodedImage,
-                       absl::optional<int32_t> decode_time_ms,
-                       absl::optional<uint8_t> qp);
+                       rtc::Optional<int32_t> decode_time_ms,
+                       rtc::Optional<uint8_t> qp) {
+    Decoded(decodedImage,
+            decode_time_ms ? static_cast<int32_t>(*decode_time_ms) : -1);
+  }
 
-  virtual int32_t ReceivedDecodedReferenceFrame(const uint64_t pictureId);
+  virtual int32_t ReceivedDecodedReferenceFrame(const uint64_t pictureId) {
+    return -1;
+  }
 
-  virtual int32_t ReceivedDecodedFrame(const uint64_t pictureId);
+  virtual int32_t ReceivedDecodedFrame(const uint64_t pictureId) { return -1; }
 };
 
-class RTC_EXPORT VideoDecoder {
+class VideoDecoder {
  public:
   virtual ~VideoDecoder() {}
 
@@ -57,8 +65,9 @@ class RTC_EXPORT VideoDecoder {
 
   virtual int32_t Decode(const EncodedImage& input_image,
                          bool missing_frames,
-                         const CodecSpecificInfo* codec_specific_info,
-                         int64_t render_time_ms) = 0;
+                         const RTPFragmentationHeader* fragmentation,
+                         const CodecSpecificInfo* codec_specific_info = NULL,
+                         int64_t render_time_ms = -1) = 0;
 
   virtual int32_t RegisterDecodeCompleteCallback(
       DecodedImageCallback* callback) = 0;
@@ -68,9 +77,9 @@ class RTC_EXPORT VideoDecoder {
   // Returns true if the decoder prefer to decode frames late.
   // That is, it can not decode infinite number of frames before the decoded
   // frame is consumed.
-  virtual bool PrefersLateDecoding() const;
+  virtual bool PrefersLateDecoding() const { return true; }
 
-  virtual const char* ImplementationName() const;
+  virtual const char* ImplementationName() const { return "unknown"; }
 };
 
 }  // namespace webrtc

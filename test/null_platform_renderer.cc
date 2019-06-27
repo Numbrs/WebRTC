@@ -18,5 +18,5 @@ VideoRenderer* VideoRenderer::CreatePlatformRenderer(const char* window_title,
                                                      size_t height) {
   return NULL;
 }
-}  // namespace test
-}  // namespace webrtc
+}  // test
+}  // webrtc

@@ -2,18 +2,17 @@ include_rules = [
   "+vpx",
   "+call",
   "+common_video",
-  "+sdk",
   "+system_wrappers",
   "+rtc_tools",
-  "+third_party/libyuv",
 ]
 
 specific_include_rules = {
-  "android_codec_factory_helper\.cc": [
+  "android_test_initializer\.cc": [
     "+base/android",
+    "+sdk",
   ],
-  ".*test.*\.cc": [
-     "+media/base",
+  "(.*test\.cc|.*test\.h|.*test\.mm)": [
      "+media/engine",
+     "+sdk",
   ],
 }

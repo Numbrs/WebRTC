@@ -10,13 +10,13 @@
 
 #include "modules/audio_coding/neteq/audio_multi_vector.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
 #include <string>
-#include <vector>
 
-#include "rtc_base/numerics/safe_conversions.h"
 #include "test/gtest.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -32,32 +32,39 @@ class AudioMultiVectorTest : public ::testing::TestWithParam<size_t> {
  protected:
   AudioMultiVectorTest()
       : num_channels_(GetParam()),  // Get the test parameter.
-        array_interleaved_(num_channels_ * array_length()) {}
+        interleaved_length_(num_channels_ * array_length()) {
+    array_interleaved_ = new int16_t[num_channels_ * array_length()];
+  }
 
-  ~AudioMultiVectorTest() = default;
+  ~AudioMultiVectorTest() {
+    delete [] array_interleaved_;
+  }
 
   virtual void SetUp() {
     // Populate test arrays.
     for (size_t i = 0; i < array_length(); ++i) {
       array_[i] = static_cast<int16_t>(i);
     }
-    int16_t* ptr = array_interleaved_.data();
+    int16_t* ptr = array_interleaved_;
     // Write 100, 101, 102, ... for first channel.
     // Write 200, 201, 202, ... for second channel.
     // And so on.
     for (size_t i = 0; i < array_length(); ++i) {
       for (size_t j = 1; j <= num_channels_; ++j) {
-        *ptr = rtc::checked_cast<int16_t>(j * 100 + i);
+        *ptr = j * 100 + i;
         ++ptr;
       }
     }
   }
 
-  size_t array_length() const { return sizeof(array_) / sizeof(array_[0]); }
+  size_t array_length() const {
+    return sizeof(array_) / sizeof(array_[0]);
+  }
 
   const size_t num_channels_;
+  size_t interleaved_length_;
   int16_t array_[10];
-  std::vector<int16_t> array_interleaved_;
+  int16_t* array_interleaved_;
 };
 
 // Create and destroy AudioMultiVector objects, both empty and with a predefined
@@ -92,7 +99,7 @@ TEST_P(AudioMultiVectorTest, SubscriptOperator) {
 // method is also invoked.
 TEST_P(AudioMultiVectorTest, PushBackInterleavedAndCopy) {
   AudioMultiVector vec(num_channels_);
-  vec.PushBackInterleaved(array_interleaved_);
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
   AudioMultiVector vec_copy(num_channels_);
   vec.CopyTo(&vec_copy);  // Copy from |vec| to |vec_copy|.
   ASSERT_EQ(num_channels_, vec.Channels());
@@ -119,7 +126,7 @@ TEST_P(AudioMultiVectorTest, PushBackInterleavedAndCopy) {
 TEST_P(AudioMultiVectorTest, CopyToNull) {
   AudioMultiVector vec(num_channels_);
   AudioMultiVector* vec_copy = NULL;
-  vec.PushBackInterleaved(array_interleaved_);
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
   vec.CopyTo(vec_copy);
 }
 
@@ -151,7 +158,7 @@ TEST_P(AudioMultiVectorTest, PushBackVector) {
 // Test the PushBackFromIndex method.
 TEST_P(AudioMultiVectorTest, PushBackFromIndex) {
   AudioMultiVector vec1(num_channels_);
-  vec1.PushBackInterleaved(array_interleaved_);
+  vec1.PushBackInterleaved(array_interleaved_, interleaved_length_);
   AudioMultiVector vec2(num_channels_);
 
   // Append vec1 to the back of vec2 (which is empty). Read vec1 from the second
@@ -160,9 +167,8 @@ TEST_P(AudioMultiVectorTest, PushBackFromIndex) {
   ASSERT_EQ(2u, vec2.Size());
   for (size_t channel = 0; channel < num_channels_; ++channel) {
     for (size_t i = 0; i < 2; ++i) {
-      EXPECT_EQ(array_interleaved_[channel +
-                                   num_channels_ * (array_length() - 2 + i)],
-                vec2[channel][i]);
+      EXPECT_EQ(array_interleaved_[channel + num_channels_ *
+                  (array_length() - 2 + i)], vec2[channel][i]);
     }
   }
 }
@@ -170,7 +176,7 @@ TEST_P(AudioMultiVectorTest, PushBackFromIndex) {
 // Starts with pushing some values to the vector, then test the Zeros method.
 TEST_P(AudioMultiVectorTest, Zeros) {
   AudioMultiVector vec(num_channels_);
-  vec.PushBackInterleaved(array_interleaved_);
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
   vec.Zeros(2 * array_length());
   ASSERT_EQ(num_channels_, vec.Channels());
   ASSERT_EQ(2u * array_length(), vec.Size());
@@ -184,28 +190,28 @@ TEST_P(AudioMultiVectorTest, Zeros) {
 // Test the ReadInterleaved method
 TEST_P(AudioMultiVectorTest, ReadInterleaved) {
   AudioMultiVector vec(num_channels_);
-  vec.PushBackInterleaved(array_interleaved_);
-  int16_t* output = new int16_t[array_interleaved_.size()];
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
+  int16_t* output = new int16_t[interleaved_length_];
   // Read 5 samples.
   size_t read_samples = 5;
   EXPECT_EQ(num_channels_ * read_samples,
             vec.ReadInterleaved(read_samples, output));
-  EXPECT_EQ(0, memcmp(array_interleaved_.data(), output,
-                      read_samples * sizeof(int16_t)));
+  EXPECT_EQ(0,
+            memcmp(array_interleaved_, output, read_samples * sizeof(int16_t)));
 
   // Read too many samples. Expect to get all samples from the vector.
-  EXPECT_EQ(array_interleaved_.size(),
+  EXPECT_EQ(interleaved_length_,
             vec.ReadInterleaved(array_length() + 1, output));
-  EXPECT_EQ(0, memcmp(array_interleaved_.data(), output,
-                      read_samples * sizeof(int16_t)));
+  EXPECT_EQ(0,
+            memcmp(array_interleaved_, output, read_samples * sizeof(int16_t)));
 
-  delete[] output;
+  delete [] output;
 }
 
 // Test the PopFront method.
 TEST_P(AudioMultiVectorTest, PopFront) {
   AudioMultiVector vec(num_channels_);
-  vec.PushBackInterleaved(array_interleaved_);
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
   vec.PopFront(1);  // Remove one element from each channel.
   ASSERT_EQ(array_length() - 1u, vec.Size());
   // Let |ptr| point to the second element of the first channel in the
@@ -224,12 +230,12 @@ TEST_P(AudioMultiVectorTest, PopFront) {
 // Test the PopBack method.
 TEST_P(AudioMultiVectorTest, PopBack) {
   AudioMultiVector vec(num_channels_);
-  vec.PushBackInterleaved(array_interleaved_);
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
   vec.PopBack(1);  // Remove one element from each channel.
   ASSERT_EQ(array_length() - 1u, vec.Size());
   // Let |ptr| point to the first element of the first channel in the
   // interleaved array.
-  int16_t* ptr = array_interleaved_.data();
+  int16_t* ptr = array_interleaved_;
   for (size_t i = 0; i < array_length() - 1; ++i) {
     for (size_t channel = 0; channel < num_channels_; ++channel) {
       EXPECT_EQ(*ptr, vec[channel][i]);
@@ -262,7 +268,7 @@ TEST_P(AudioMultiVectorTest, AssertSize) {
 // Test the PushBack method with another AudioMultiVector as input argument.
 TEST_P(AudioMultiVectorTest, OverwriteAt) {
   AudioMultiVector vec1(num_channels_);
-  vec1.PushBackInterleaved(array_interleaved_);
+  vec1.PushBackInterleaved(array_interleaved_, interleaved_length_);
   AudioMultiVector vec2(num_channels_);
   vec2.Zeros(3);  // 3 zeros in each channel.
   // Overwrite vec2 at position 5.
@@ -270,7 +276,7 @@ TEST_P(AudioMultiVectorTest, OverwriteAt) {
   // Verify result.
   // Length remains the same.
   ASSERT_EQ(array_length(), vec1.Size());
-  int16_t* ptr = array_interleaved_.data();
+  int16_t* ptr = array_interleaved_;
   for (size_t i = 0; i < array_length() - 1; ++i) {
     for (size_t channel = 0; channel < num_channels_; ++channel) {
       if (i >= 5 && i <= 7) {
@@ -291,7 +297,7 @@ TEST_P(AudioMultiVectorTest, CopyChannel) {
     return;
 
   AudioMultiVector vec(num_channels_);
-  vec.PushBackInterleaved(array_interleaved_);
+  vec.PushBackInterleaved(array_interleaved_, interleaved_length_);
   // Create a reference copy.
   AudioMultiVector ref(num_channels_);
   ref.PushBack(vec);
@@ -309,9 +315,9 @@ TEST_P(AudioMultiVectorTest, CopyChannel) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(TestNumChannels,
-                         AudioMultiVectorTest,
-                         ::testing::Values(static_cast<size_t>(1),
-                                           static_cast<size_t>(2),
-                                           static_cast<size_t>(5)));
+INSTANTIATE_TEST_CASE_P(TestNumChannels,
+                        AudioMultiVectorTest,
+                        ::testing::Values(static_cast<size_t>(1),
+                                          static_cast<size_t>(2),
+                                          static_cast<size_t>(5)));
 }  // namespace webrtc

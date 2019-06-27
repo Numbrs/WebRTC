@@ -11,10 +11,11 @@
 #include "modules/video_coding/test/stream_generator.h"
 
 #include <string.h>
+
 #include <list>
 
-#include "modules/include/module_common_types.h"
 #include "modules/video_coding/packet.h"
+#include "system_wrappers/include/clock.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -60,11 +61,11 @@ VCMPacket StreamGenerator::GeneratePacket(uint16_t sequence_number,
   packet.seqNum = sequence_number;
   packet.timestamp = timestamp;
   packet.frameType = type;
-  packet.video_header.is_first_packet_in_frame = first_packet;
+  packet.is_first_packet_in_frame = first_packet;
   packet.markerBit = marker_bit;
   packet.sizeBytes = size;
   packet.dataPtr = packet_buffer_;
-  if (packet.is_first_packet_in_frame())
+  if (packet.is_first_packet_in_frame)
     packet.completeNALU = kNaluStart;
   else if (packet.markerBit)
     packet.completeNALU = kNaluEnd;

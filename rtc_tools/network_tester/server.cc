@@ -10,11 +10,10 @@
 
 #include "rtc_tools/network_tester/test_controller.h"
 
-int main(int /*argn*/, char* /*argv*/ []) {
+int main() {
   webrtc::TestController server(9090, 9090, "server_config.dat",
                                 "server_packet_log.dat");
   while (!server.IsTestDone()) {
     server.Run();
   }
-  return 0;
 }

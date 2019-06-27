@@ -17,17 +17,11 @@
 #define ENABLE_SEQUENCED_TASK_CHECKER RTC_DCHECK_IS_ON
 
 #include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 #include "rtc_base/sequenced_task_checker_impl.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace rtc {
-namespace internal {
-// Forward declaration of the internal implementation of RTC_GUARDED_BY().
-// SequencedTaskChecker grants this class access to call its IsCurrent() method.
-// See thread_checker.h for more details.
-class AnnounceOnThread;
-}  // namespace internal
 
 // Do nothing implementation, for use in release mode.
 //
@@ -36,11 +30,8 @@ class AnnounceOnThread;
 class SequencedTaskCheckerDoNothing {
  public:
   bool CalledSequentially() const { return true; }
-  void Detach() {}
 
- private:
-  friend class internal::AnnounceOnThread;
-  bool IsCurrent() const { return CalledSequentially(); }
+  void Detach() {}
 };
 
 // SequencedTaskChecker is a helper class used to help verify that some methods

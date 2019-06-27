@@ -8,7 +8,6 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.os.Build;
-import android.support.annotation.Nullable;
 import android.util.Range;
 
 import java.util.ArrayList;
@@ -28,7 +27,7 @@ public class Camera2InfoImpl implements RtcCameraInfo {
     private static final List<Float> EMPTY_FLOAT_LIST = Collections.emptyList();
     private static final List<Range<Integer>> EMPTY_RANGE_LIST = Collections.emptyList();
 
-    @Nullable private final String cameraId;
+    private final String cameraId;
     private final int cameraIndex;
     private final int lensFacing;
     private final int orientation;
@@ -50,12 +49,12 @@ public class Camera2InfoImpl implements RtcCameraInfo {
     private int height;
     private int preferredFps;
     private final int fpsUnitFactor;
-    private final boolean fixAutoFocus;
+    private final boolean applyAutoFocusFix;
     private final boolean applyImageStretchedFix;
 
-    @Nullable private CameraEnumerationAndroid.CaptureFormat captureFormat;
-    @Nullable private CameraEnumerationAndroid.CaptureFormat.FramerateRange bestFpsRange;
-    @Nullable private Size bestSize;
+    private CameraEnumerationAndroid.CaptureFormat captureFormat = null;
+    private CameraEnumerationAndroid.CaptureFormat.FramerateRange bestFpsRange = null;
+    private Size bestSize = null;
 
 
     public static RtcCameraInfo create(
@@ -65,7 +64,7 @@ public class Camera2InfoImpl implements RtcCameraInfo {
             int width,
             int height,
             int frameRate,
-            boolean fixAutoFocus,
+            boolean applyAutofocusFix,
             boolean applyImageStretchedFix) {
 
         CameraManager cameraManager = (CameraManager) applicationContext.getSystemService(Context.CAMERA_SERVICE);
@@ -85,7 +84,7 @@ public class Camera2InfoImpl implements RtcCameraInfo {
                 width,
                 height,
                 frameRate,
-                fixAutoFocus,
+                applyAutofocusFix,
                 applyImageStretchedFix
         );
     }
@@ -98,7 +97,7 @@ public class Camera2InfoImpl implements RtcCameraInfo {
             int width,
             int height,
             int preferredFps,
-            boolean fixAutoFocus,
+            boolean applyAutofocusFix,
             boolean applyImageStretchedFix) {
         this(
                 cameraId,
@@ -109,7 +108,7 @@ public class Camera2InfoImpl implements RtcCameraInfo {
                 width,
                 height,
                 preferredFps,
-                fixAutoFocus,
+                applyAutofocusFix,
                 applyImageStretchedFix
         );
     }
@@ -123,14 +122,14 @@ public class Camera2InfoImpl implements RtcCameraInfo {
             int width,
             int height,
             int preferredFps,
-            boolean fixAutoFocus,
+            boolean applyAutofocusFix,
             boolean applyImageStretchedFix) {
         this.cameraId = cameraId;
         this.cameraIndex = cameraIndex;
         this.width = width;
         this.height = height;
         this.preferredFps = preferredFps;
-        this.fixAutoFocus = fixAutoFocus;
+        this.applyAutoFocusFix = applyAutofocusFix;
         this.applyImageStretchedFix = applyImageStretchedFix;
 
         this.availableSizes = availableSizes;
@@ -168,7 +167,6 @@ public class Camera2InfoImpl implements RtcCameraInfo {
         calculateCaptureFormat();
     }
 
-    @Nullable
     @Override
     public String getCameraId() {
         return cameraId;
@@ -231,7 +229,7 @@ public class Camera2InfoImpl implements RtcCameraInfo {
 
     @Override
     public boolean applyAutoFocusFix() {
-        return fixAutoFocus;
+        return applyAutoFocusFix;
     }
 
     @Override
@@ -305,7 +303,6 @@ public class Camera2InfoImpl implements RtcCameraInfo {
         }
     }
 
-    @Nullable
     @Override
     public CameraEnumerationAndroid.CaptureFormat getCaptureFormat() {
         if (captureFormat != null) {
@@ -316,7 +313,6 @@ public class Camera2InfoImpl implements RtcCameraInfo {
         return captureFormat;
     }
 
-    @Nullable
     @Override
     public Size getBestSize() {
         if (bestSize != null) {
@@ -327,7 +323,6 @@ public class Camera2InfoImpl implements RtcCameraInfo {
         return bestSize;
     }
 
-    @Nullable
     @Override
     public Range<Integer> getBestFpsRange() {
         if (bestFpsRange != null) {

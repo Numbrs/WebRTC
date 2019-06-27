@@ -11,8 +11,8 @@
 #ifndef MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_PACKET_SENDER_H_
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_PACKET_SENDER_H_
 
-#include <limits>
 #include <list>
+#include <limits>
 #include <memory>
 #include <set>
 #include <string>
@@ -20,7 +20,7 @@
 #include "modules/include/module.h"
 #include "modules/remote_bitrate_estimator/test/bwe.h"
 #include "modules/remote_bitrate_estimator/test/bwe_test_framework.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 
 namespace webrtc {
 namespace testing {
@@ -38,7 +38,7 @@ class PacketSender : public PacketProcessor {
         // We assume that both start at time 0.
         clock_(0),
         metric_recorder_(nullptr) {}
-  ~PacketSender() override {}
+  virtual ~PacketSender() {}
   // Call GiveFeedback() with the returned interval in milliseconds, provided
   // there is a new estimate available.
   // Note that changing the feedback interval affects the timing of when the
@@ -47,7 +47,7 @@ class PacketSender : public PacketProcessor {
   virtual int GetFeedbackIntervalMs() const = 0;
   void SetSenderTimestamps(Packets* in_out);
 
-  virtual uint32_t TargetBitrateKbps();
+  virtual uint32_t TargetBitrateKbps() { return 0; }
 
   virtual void Pause();
   virtual void Resume(int64_t paused_time_ms);
@@ -68,12 +68,12 @@ class VideoSender : public PacketSender, public BitrateObserver {
   VideoSender(PacketProcessorListener* listener,
               VideoSource* source,
               BandwidthEstimatorType estimator);
-  ~VideoSender() override;
+  virtual ~VideoSender();
 
   int GetFeedbackIntervalMs() const override;
   void RunFor(int64_t time_ms, Packets* in_out) override;
 
-  virtual VideoSource* source() const;
+  virtual VideoSource* source() const { return source_; }
 
   uint32_t TargetBitrateKbps() override;
 
@@ -104,7 +104,7 @@ class PacedVideoSender : public VideoSender, public PacedSender::PacketSender {
   PacedVideoSender(PacketProcessorListener* listener,
                    VideoSource* source,
                    BandwidthEstimatorType estimator);
-  ~PacedVideoSender() override;
+  virtual ~PacedVideoSender();
 
   void RunFor(int64_t time_ms, Packets* in_out) override;
 
@@ -127,7 +127,9 @@ class PacedVideoSender : public VideoSender, public PacedSender::PacketSender {
                         bool in_probe_rtt,
                         int64_t rtt,
                         uint64_t congestion_window) override;
-  size_t pacer_queue_size_in_bytes() override;
+  size_t pacer_queue_size_in_bytes() override {
+    return pacer_queue_size_in_bytes_;
+  }
   void OnBytesAcked(size_t bytes) override;
 
  private:
@@ -150,10 +152,10 @@ class TcpSender : public PacketSender {
             int flow_id,
             int64_t offset_ms,
             int send_limit_bytes);
-  ~TcpSender() override;
+  virtual ~TcpSender() {}
 
   void RunFor(int64_t time_ms, Packets* in_out) override;
-  int GetFeedbackIntervalMs() const override;
+  int GetFeedbackIntervalMs() const override { return 10; }
 
   uint32_t TargetBitrateKbps() override;
 

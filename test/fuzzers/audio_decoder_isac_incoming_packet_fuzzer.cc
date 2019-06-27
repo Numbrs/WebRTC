@@ -13,9 +13,6 @@
 
 namespace webrtc {
 void FuzzOneInput(const uint8_t* data, size_t size) {
-  if (size > 20000) {
-    return;
-  }
   AudioDecoderIsacFloatImpl dec(16000);
   FuzzAudioDecoderIncomingPacket(data, size, &dec);
 }

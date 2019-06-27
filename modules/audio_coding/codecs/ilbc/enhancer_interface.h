@@ -19,15 +19,16 @@
 #ifndef MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_ENHANCER_INTERFACE_H_
 #define MODULES_AUDIO_CODING_CODECS_ILBC_MAIN_SOURCE_ENHANCER_INTERFACE_H_
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
+#include "defines.h"
 
 /*----------------------------------------------------------------*
  * interface for enhancer
  *---------------------------------------------------------------*/
 
 size_t  // (o) Estimated lag in end of in[]
-WebRtcIlbcfix_EnhancerInterface(int16_t* out,       // (o) enhanced signal
-                                const int16_t* in,  // (i) unenhanced signal
-                                IlbcDecoder* iLBCdec_inst);  // (i) buffers etc
+    WebRtcIlbcfix_EnhancerInterface(
+        int16_t* out,                // (o) enhanced signal
+        const int16_t* in,           // (i) unenhanced signal
+        IlbcDecoder* iLBCdec_inst);  // (i) buffers etc
 
 #endif

@@ -11,7 +11,6 @@
 #ifndef MODULES_AUDIO_PROCESSING_TRANSIENT_TRANSIENT_DETECTOR_H_
 #define MODULES_AUDIO_PROCESSING_TRANSIENT_TRANSIENT_DETECTOR_H_
 
-#include <stddef.h>
 #include <deque>
 #include <memory>
 

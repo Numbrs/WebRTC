@@ -11,9 +11,6 @@
 #ifndef MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_APP_H_
 #define MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_APP_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include "modules/rtp_rtcp/source/rtcp_packet.h"
 #include "rtc_base/buffer.h"
 
@@ -46,7 +43,7 @@ class App : public RtcpPacket {
   bool Create(uint8_t* packet,
               size_t* index,
               size_t max_length,
-              PacketReadyCallback callback) const override;
+              RtcpPacket::PacketReadyCallback* callback) const override;
 
  private:
   static constexpr size_t kAppBaseLength = 8;  // Ssrc and Name.

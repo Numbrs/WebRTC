@@ -8,4 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#import "api/peerconnection/RTCTracing.h"
+#import <Foundation/Foundation.h>
+
+#import <WebRTC/RTCMacros.h>
+
+RTC_EXTERN void RTCSetupInternalTracer();
+/** Starts capture to specified file. Must be a valid writable path.
+ *  Returns YES if capture starts.
+ */
+RTC_EXTERN BOOL RTCStartInternalCapture(NSString *filePath);
+RTC_EXTERN void RTCStopInternalCapture();
+RTC_EXTERN void RTCShutdownInternalTracer();

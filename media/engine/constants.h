@@ -14,12 +14,11 @@
 namespace cricket {
 
 extern const int kVideoMtu;
-extern const int kVideoRtpSendBufferSize;
-extern const int kVideoRtpRecvBufferSize;
+extern const int kVideoRtpBufferSize;
 
 extern const char kH264CodecName[];
 
-extern const int kMinVideoBitrateBps;
+extern const int kMinVideoBitrateKbps;
 
 }  // namespace cricket
 

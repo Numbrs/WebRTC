@@ -13,10 +13,7 @@ if (is_android) {
 }
 
 rtc_source_set("audio_codecs_api") {
-  visibility = [ "*" ]
   sources = [
-    "audio_codec_pair_id.cc",
-    "audio_codec_pair_id.h",
     "audio_decoder.cc",
     "audio_decoder.h",
     "audio_decoder_factory.h",
@@ -30,34 +27,22 @@ rtc_source_set("audio_codecs_api") {
   ]
   deps = [
     "..:array_view",
-    "..:bitrate_allocation",
-    "..:scoped_refptr",
+    "..:optional",
     "../..:webrtc_common",
-    "../../rtc_base:checks",
-    "../../rtc_base:deprecation",
     "../../rtc_base:rtc_base_approved",
-    "../../rtc_base:sanitizer",
-    "../../rtc_base/system:rtc_export",
-    "//third_party/abseil-cpp/absl/strings",
-    "//third_party/abseil-cpp/absl/types:optional",
   ]
 }
 
 rtc_static_library("builtin_audio_decoder_factory") {
-  visibility = [ "*" ]
-  allow_poison = [ "audio_codecs" ]
   sources = [
     "builtin_audio_decoder_factory.cc",
     "builtin_audio_decoder_factory.h",
   ]
   deps = [
     ":audio_codecs_api",
-    "..:scoped_refptr",
     "../../rtc_base:rtc_base_approved",
     "L16:audio_decoder_L16",
     "g711:audio_decoder_g711",
-    "g722:audio_decoder_g722",
-    "isac:audio_decoder_isac",
   ]
   defines = []
   if (rtc_include_ilbc) {
@@ -72,23 +57,33 @@ rtc_static_library("builtin_audio_decoder_factory") {
   } else {
     defines += [ "WEBRTC_USE_BUILTIN_OPUS=0" ]
   }
+  if (build_with_mozilla) {
+    defines += [
+      "WEBRTC_USE_BUILTIN_G722=0",
+      "WEBRTC_USE_BUILTIN_ISAC=0",
+    ]
+  } else {
+    deps += [
+      "g722:audio_decoder_g722",
+      "isac:audio_decoder_isac",
+    ]
+    defines += [
+      "WEBRTC_USE_BUILTIN_G722=1",
+      "WEBRTC_USE_BUILTIN_ISAC=1",
+    ]
+  }
 }
 
 rtc_static_library("builtin_audio_encoder_factory") {
-  visibility = [ "*" ]
-  allow_poison = [ "audio_codecs" ]
   sources = [
     "builtin_audio_encoder_factory.cc",
     "builtin_audio_encoder_factory.h",
   ]
   deps = [
     ":audio_codecs_api",
-    "..:scoped_refptr",
     "../../rtc_base:rtc_base_approved",
     "L16:audio_encoder_L16",
     "g711:audio_encoder_g711",
-    "g722:audio_encoder_g722",
-    "isac:audio_encoder_isac",
   ]
   defines = []
   if (rtc_include_ilbc) {
@@ -102,5 +97,20 @@ rtc_static_library("builtin_audio_encoder_factory") {
     defines += [ "WEBRTC_USE_BUILTIN_OPUS=1" ]
   } else {
     defines += [ "WEBRTC_USE_BUILTIN_OPUS=0" ]
+  }
+  if (build_with_mozilla) {
+    defines += [
+      "WEBRTC_USE_BUILTIN_G722=0",
+      "WEBRTC_USE_BUILTIN_ISAC=0",
+    ]
+  } else {
+    deps += [
+      "g722:audio_encoder_g722",
+      "isac:audio_encoder_isac",
+    ]
+    defines += [
+      "WEBRTC_USE_BUILTIN_G722=1",
+      "WEBRTC_USE_BUILTIN_ISAC=1",
+    ]
   }
 }

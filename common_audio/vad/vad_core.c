@@ -15,6 +15,7 @@
 #include "common_audio/vad/vad_filterbank.h"
 #include "common_audio/vad/vad_gmm.h"
 #include "common_audio/vad/vad_sp.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 // Spectrum Weighting
 static const int16_t kSpectrumWeight[kNumChannels] = { 6, 8, 10, 12, 14, 16 };
@@ -240,7 +241,7 @@ static int16_t GmmProbability(VadInstT* self, int16_t* features,
           (int32_t) (log_likelihood_ratio * kSpectrumWeight[channel]);
 
       // Local VAD decision.
-      if ((log_likelihood_ratio * 4) > individualTest) {
+      if ((log_likelihood_ratio << 2) > individualTest) {
         vadflag = 1;
       }
 

@@ -11,13 +11,11 @@
 #ifndef RTC_BASE_RATE_LIMITER_H_
 #define RTC_BASE_RATE_LIMITER_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include <limits>
 
-#include "rtc_base/constructor_magic.h"
-#include "rtc_base/critical_section.h"
+#include "rtc_base/constructormagic.h"
+#include "rtc_base/criticalsection.h"
 #include "rtc_base/rate_statistics.h"
-#include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
 
@@ -28,7 +26,7 @@ class Clock;
 // methods will acquire (the same) lock befeore executing.
 class RateLimiter {
  public:
-  RateLimiter(Clock* clock, int64_t max_window_ms);
+  RateLimiter(const Clock* clock, int64_t max_window_ms);
   ~RateLimiter();
 
   // Try to use rate to send bytes. Returns true on success and if so updates
@@ -44,7 +42,7 @@ class RateLimiter {
   bool SetWindowSize(int64_t window_size_ms);
 
  private:
-  Clock* const clock_;
+  const Clock* const clock_;
   rtc::CriticalSection lock_;
   RateStatistics current_rate_ RTC_GUARDED_BY(lock_);
   int64_t window_size_ms_ RTC_GUARDED_BY(lock_);

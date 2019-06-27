@@ -20,7 +20,6 @@ disable=
   I0010,
   I0011,
   W0232,
-  C0413,
   bad-continuation,
   broad-except,
   duplicate-code,

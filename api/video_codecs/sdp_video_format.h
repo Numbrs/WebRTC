@@ -14,25 +14,21 @@
 #include <map>
 #include <string>
 
-#include "rtc_base/system/rtc_export.h"
-
 namespace webrtc {
 
 // SDP specification for a single video codec.
 // NOTE: This class is still under development and may change without notice.
-struct RTC_EXPORT SdpVideoFormat {
+struct SdpVideoFormat {
   using Parameters = std::map<std::string, std::string>;
 
-  explicit SdpVideoFormat(const std::string& name);
-  SdpVideoFormat(const std::string& name, const Parameters& parameters);
-  SdpVideoFormat(const SdpVideoFormat&);
-  SdpVideoFormat(SdpVideoFormat&&);
-  SdpVideoFormat& operator=(const SdpVideoFormat&);
-  SdpVideoFormat& operator=(SdpVideoFormat&&);
+  explicit SdpVideoFormat(const std::string& name) : name(name) {}
+  SdpVideoFormat(const std::string& name, const Parameters& parameters)
+      : name(name), parameters(parameters) {}
 
-  ~SdpVideoFormat();
+  friend bool operator==(const SdpVideoFormat& a, const SdpVideoFormat& b) {
+    return a.name == b.name && a.parameters == b.parameters;
+  }
 
-  friend bool operator==(const SdpVideoFormat& a, const SdpVideoFormat& b);
   friend bool operator!=(const SdpVideoFormat& a, const SdpVideoFormat& b) {
     return !(a == b);
   }

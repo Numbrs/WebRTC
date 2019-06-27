@@ -8,12 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "test/call_test.h"
-#include "test/field_trial.h"
 #include "test/gtest.h"
 #include "test/rtcp_packet_parser.h"
 
@@ -21,18 +16,19 @@ namespace webrtc {
 namespace test {
 namespace {
 
-enum : int {  // The first valid value is 1.
-  kAudioLevelExtensionId = 1,
-  kTransportSequenceNumberExtensionId,
-};
-
 class AudioSendTest : public SendTest {
  public:
   AudioSendTest() : SendTest(CallTest::kDefaultTimeoutMs) {}
 
-  size_t GetNumVideoStreams() const override { return 0; }
-  size_t GetNumAudioStreams() const override { return 1; }
-  size_t GetNumFlexfecStreams() const override { return 0; }
+  size_t GetNumVideoStreams() const override {
+    return 0;
+  }
+  size_t GetNumAudioStreams() const override {
+    return 1;
+  }
+  size_t GetNumFlexfecStreams() const override {
+    return 0;
+  }
 };
 }  // namespace
 
@@ -111,8 +107,8 @@ TEST_F(AudioSendStreamCallTest, SupportsAudioLevel) {
   class AudioLevelObserver : public AudioSendTest {
    public:
     AudioLevelObserver() : AudioSendTest() {
-      EXPECT_TRUE(parser_->RegisterRtpHeaderExtension(kRtpExtensionAudioLevel,
-                                                      kAudioLevelExtensionId));
+      EXPECT_TRUE(parser_->RegisterRtpHeaderExtension(
+          kRtpExtensionAudioLevel, test::kAudioLevelExtensionId));
     }
 
     Action OnSendRtp(const uint8_t* packet, size_t length) override {
@@ -124,8 +120,8 @@ TEST_F(AudioSendStreamCallTest, SupportsAudioLevel) {
         // Wait for at least one packet with a non-zero level.
         observation_complete_.Set();
       } else {
-        RTC_LOG(LS_WARNING) << "Got a packet with zero audioLevel - waiting"
-                               " for another packet...";
+        LOG(LS_WARNING) << "Got a packet with zero audioLevel - waiting"
+                           " for another packet...";
       }
 
       return SEND_PACKET;
@@ -135,8 +131,8 @@ TEST_F(AudioSendStreamCallTest, SupportsAudioLevel) {
         AudioSendStream::Config* send_config,
         std::vector<AudioReceiveStream::Config>* receive_configs) override {
       send_config->rtp.extensions.clear();
-      send_config->rtp.extensions.push_back(
-          RtpExtension(RtpExtension::kAudioLevelUri, kAudioLevelExtensionId));
+      send_config->rtp.extensions.push_back(RtpExtension(
+          RtpExtension::kAudioLevelUri, test::kAudioLevelExtensionId));
     }
 
     void PerformTest() override {
@@ -147,54 +143,42 @@ TEST_F(AudioSendStreamCallTest, SupportsAudioLevel) {
   RunBaseTest(&test);
 }
 
-class TransportWideSequenceNumberObserver : public AudioSendTest {
- public:
-  explicit TransportWideSequenceNumberObserver(bool expect_sequence_number)
-      : AudioSendTest(), expect_sequence_number_(expect_sequence_number) {
-    EXPECT_TRUE(parser_->RegisterRtpHeaderExtension(
-        kRtpExtensionTransportSequenceNumber,
-        kTransportSequenceNumberExtensionId));
-  }
+TEST_F(AudioSendStreamCallTest, SupportsTransportWideSequenceNumbers) {
+  static const uint8_t kExtensionId = test::kTransportSequenceNumberExtensionId;
+  class TransportWideSequenceNumberObserver : public AudioSendTest {
+   public:
+    TransportWideSequenceNumberObserver() : AudioSendTest() {
+      EXPECT_TRUE(parser_->RegisterRtpHeaderExtension(
+          kRtpExtensionTransportSequenceNumber, kExtensionId));
+    }
 
- private:
-  Action OnSendRtp(const uint8_t* packet, size_t length) override {
-    RTPHeader header;
-    EXPECT_TRUE(parser_->Parse(packet, length, &header));
+   private:
+    Action OnSendRtp(const uint8_t* packet, size_t length) override {
+      RTPHeader header;
+      EXPECT_TRUE(parser_->Parse(packet, length, &header));
 
-    EXPECT_EQ(header.extension.hasTransportSequenceNumber,
-              expect_sequence_number_);
-    EXPECT_FALSE(header.extension.hasTransmissionTimeOffset);
-    EXPECT_FALSE(header.extension.hasAbsoluteSendTime);
+      EXPECT_TRUE(header.extension.hasTransportSequenceNumber);
+      EXPECT_FALSE(header.extension.hasTransmissionTimeOffset);
+      EXPECT_FALSE(header.extension.hasAbsoluteSendTime);
 
-    observation_complete_.Set();
+      observation_complete_.Set();
 
-    return SEND_PACKET;
-  }
+      return SEND_PACKET;
+    }
 
-  void ModifyAudioConfigs(
-      AudioSendStream::Config* send_config,
-      std::vector<AudioReceiveStream::Config>* receive_configs) override {
-    send_config->rtp.extensions.clear();
-    send_config->rtp.extensions.push_back(
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
-                     kTransportSequenceNumberExtensionId));
-  }
+    void ModifyAudioConfigs(
+        AudioSendStream::Config* send_config,
+        std::vector<AudioReceiveStream::Config>* receive_configs) override {
+      send_config->rtp.extensions.clear();
+      send_config->rtp.extensions.push_back(RtpExtension(
+          RtpExtension::kTransportSequenceNumberUri, kExtensionId));
+    }
 
-  void PerformTest() override {
-    EXPECT_TRUE(Wait()) << "Timed out while waiting for a single RTP packet.";
-  }
-  const bool expect_sequence_number_;
-};
+    void PerformTest() override {
+      EXPECT_TRUE(Wait()) << "Timed out while waiting for a single RTP packet.";
+    }
+  } test;
 
-TEST_F(AudioSendStreamCallTest, SendsTransportWideSequenceNumbersInFieldTrial) {
-  ScopedFieldTrials field_trials("WebRTC-Audio-SendSideBwe/Enabled/");
-  TransportWideSequenceNumberObserver test(/*expect_sequence_number=*/true);
-  RunBaseTest(&test);
-}
-
-TEST_F(AudioSendStreamCallTest,
-       DoesNotSendTransportWideSequenceNumbersPerDefault) {
-  TransportWideSequenceNumberObserver test(/*expect_sequence_number=*/false);
   RunBaseTest(&test);
 }
 

@@ -19,35 +19,34 @@
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_abs_send_time.h"
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_single_stream.h"
 #include "modules/rtp_rtcp/include/rtp_header_parser.h"
+#include "modules/rtp_rtcp/include/rtp_payload_registry.h"
 #include "rtc_base/flags.h"
 #include "test/rtp_file_reader.h"
 
 namespace flags {
 
-WEBRTC_DEFINE_string(
-    extension_type,
-    "abs",
-    "Extension type, either abs for absolute send time or tsoffset "
-    "for timestamp offset.");
+DEFINE_string(extension_type,
+              "abs",
+              "Extension type, either abs for absolute send time or tsoffset "
+              "for timestamp offset.");
 std::string ExtensionType() {
   return static_cast<std::string>(FLAG_extension_type);
 }
 
-WEBRTC_DEFINE_int(extension_id, 3, "Extension id.");
+DEFINE_int(extension_id, 3, "Extension id.");
 int ExtensionId() {
   return static_cast<int>(FLAG_extension_id);
 }
 
-WEBRTC_DEFINE_string(input_file, "", "Input file.");
+DEFINE_string(input_file, "", "Input file.");
 std::string InputFile() {
   return static_cast<std::string>(FLAG_input_file);
 }
 
-WEBRTC_DEFINE_string(
-    ssrc_filter,
-    "",
-    "Comma-separated list of SSRCs in hexadecimal which are to be "
-    "used as input to the BWE (only applicable to pcap files).");
+DEFINE_string(ssrc_filter,
+              "",
+              "Comma-separated list of SSRCs in hexadecimal which are to be "
+              "used as input to the BWE (only applicable to pcap files).");
 std::set<uint32_t> SsrcFilter() {
   std::string ssrc_filter_string = static_cast<std::string>(FLAG_ssrc_filter);
   if (ssrc_filter_string.empty())
@@ -66,7 +65,7 @@ std::set<uint32_t> SsrcFilter() {
   return ssrcs;
 }
 
-WEBRTC_DEFINE_bool(help, false, "Print this message.");
+DEFINE_bool(help, false, "Print this message.");
 }  // namespace flags
 
 bool ParseArgsAndSetupEstimator(int argc,
@@ -92,7 +91,7 @@ bool ParseArgsAndSetupEstimator(int argc,
     fprintf(stderr, "0x%08x, ", s);
   }
   fprintf(stderr, "\n");
-  if (filename.substr(filename.find_last_of('.')) == ".pcap") {
+  if (filename.substr(filename.find_last_of(".")) == ".pcap") {
     fprintf(stderr, "Opening as pcap\n");
     *rtp_reader = webrtc::test::RtpFileReader::Create(
         webrtc::test::RtpFileReader::kPcap, filename.c_str(),
@@ -129,13 +128,13 @@ bool ParseArgsAndSetupEstimator(int argc,
             new webrtc::RemoteBitrateEstimatorAbsSendTime(observer, clock);
         *estimator_used = "AbsoluteSendTimeRemoteBitrateEstimator";
         break;
-      }
+        }
       case webrtc::kRtpExtensionTransmissionTimeOffset: {
         *estimator =
             new webrtc::RemoteBitrateEstimatorSingleStream(observer, clock);
-        *estimator_used = "RemoteBitrateEstimator";
-        break;
-      }
+          *estimator_used = "RemoteBitrateEstimator";
+          break;
+        }
       default:
         assert(false);
     }

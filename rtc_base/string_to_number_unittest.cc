@@ -10,11 +10,11 @@
 
 #include "rtc_base/string_to_number.h"
 
-#include <stdint.h>
-#include <limits>
 #include <string>
+#include <type_traits>
+#include <limits>
 
-#include "test/gtest.h"
+#include "rtc_base/gunit.h"
 
 namespace rtc {
 
@@ -36,22 +36,21 @@ using IntegerTypes =
 template <typename T>
 class BasicNumberTest : public ::testing::Test {};
 
-TYPED_TEST_SUITE_P(BasicNumberTest);
+TYPED_TEST_CASE_P(BasicNumberTest);
 
 TYPED_TEST_P(BasicNumberTest, TestValidNumbers) {
   using T = TypeParam;
   constexpr T min_value = std::numeric_limits<T>::lowest();
   constexpr T max_value = std::numeric_limits<T>::max();
-  constexpr T zero_value = 0;
   const std::string min_string = std::to_string(min_value);
   const std::string max_string = std::to_string(max_value);
   EXPECT_EQ(min_value, StringToNumber<T>(min_string));
   EXPECT_EQ(min_value, StringToNumber<T>(min_string.c_str()));
   EXPECT_EQ(max_value, StringToNumber<T>(max_string));
   EXPECT_EQ(max_value, StringToNumber<T>(max_string.c_str()));
-  EXPECT_EQ(zero_value, StringToNumber<T>("0"));
-  EXPECT_EQ(zero_value, StringToNumber<T>("-0"));
-  EXPECT_EQ(zero_value, StringToNumber<T>(std::string("-0000000000000")));
+  EXPECT_EQ(0, StringToNumber<T>("0"));
+  EXPECT_EQ(0, StringToNumber<T>("-0"));
+  EXPECT_EQ(0, StringToNumber<T>(std::string("-0000000000000")));
 }
 
 TYPED_TEST_P(BasicNumberTest, TestInvalidNumbers) {
@@ -68,10 +67,10 @@ TYPED_TEST_P(BasicNumberTest, TestInvalidNumbers) {
       (min_value == 0) ? "-2" : (std::to_string(min_value) + "1");
   // Make the large value approximately ten times larger than the maximum.
   const std::string too_large_string = std::to_string(max_value) + "1";
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(too_low_string));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(too_low_string.c_str()));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(too_large_string));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(too_large_string.c_str()));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(too_low_string));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(too_low_string.c_str()));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(too_large_string));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(too_large_string.c_str()));
 }
 
 TYPED_TEST_P(BasicNumberTest, TestInvalidInputs) {
@@ -79,36 +78,38 @@ TYPED_TEST_P(BasicNumberTest, TestInvalidInputs) {
   const char kInvalidCharArray[] = "Invalid string containing 47";
   const char kPlusMinusCharArray[] = "+-100";
   const char kNumberFollowedByCruft[] = "640x480";
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(kInvalidCharArray));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(std::string(kInvalidCharArray)));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(kPlusMinusCharArray));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(std::string(kPlusMinusCharArray)));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(kNumberFollowedByCruft));
-  EXPECT_EQ(absl::nullopt,
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(kInvalidCharArray));
+  EXPECT_EQ(rtc::Optional<T>(),
+            StringToNumber<T>(std::string(kInvalidCharArray)));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(kPlusMinusCharArray));
+  EXPECT_EQ(rtc::Optional<T>(),
+            StringToNumber<T>(std::string(kPlusMinusCharArray)));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(kNumberFollowedByCruft));
+  EXPECT_EQ(rtc::Optional<T>(),
             StringToNumber<T>(std::string(kNumberFollowedByCruft)));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(" 5"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(" - 5"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>("- 5"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>(" -5"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<T>("5 "));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(" 5"));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(" - 5"));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>("- 5"));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>(" -5"));
+  EXPECT_EQ(rtc::Optional<T>(), StringToNumber<T>("5 "));
 }
 
-REGISTER_TYPED_TEST_SUITE_P(BasicNumberTest,
-                            TestValidNumbers,
-                            TestInvalidNumbers,
-                            TestInvalidInputs);
+REGISTER_TYPED_TEST_CASE_P(BasicNumberTest,
+                           TestValidNumbers,
+                           TestInvalidNumbers,
+                           TestInvalidInputs);
 
 }  // namespace
 
-INSTANTIATE_TYPED_TEST_SUITE_P(StringToNumberTest_Integers,
-                               BasicNumberTest,
-                               IntegerTypes);
+INSTANTIATE_TYPED_TEST_CASE_P(StringToNumberTest_Integers,
+                              BasicNumberTest,
+                              IntegerTypes);
 
 TEST(StringToNumberTest, TestSpecificValues) {
-  EXPECT_EQ(absl::nullopt, StringToNumber<uint8_t>("256"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<uint8_t>("-256"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<int8_t>("256"));
-  EXPECT_EQ(absl::nullopt, StringToNumber<int8_t>("-256"));
+  EXPECT_EQ(rtc::Optional<uint8_t>(), StringToNumber<uint8_t>("256"));
+  EXPECT_EQ(rtc::Optional<uint8_t>(), StringToNumber<uint8_t>("-256"));
+  EXPECT_EQ(rtc::Optional<int8_t>(), StringToNumber<int8_t>("256"));
+  EXPECT_EQ(rtc::Optional<int8_t>(), StringToNumber<int8_t>("-256"));
 }
 
 }  // namespace rtc

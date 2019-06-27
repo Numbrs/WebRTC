@@ -25,7 +25,6 @@ TEST(PushResamplerTest, VerifiesInputParameters) {
   PushResampler<int16_t> resampler;
   EXPECT_EQ(0, resampler.InitializeIfNeeded(16000, 16000, 1));
   EXPECT_EQ(0, resampler.InitializeIfNeeded(16000, 16000, 2));
-  EXPECT_EQ(0, resampler.InitializeIfNeeded(16000, 16000, 8));
 }
 
 #if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
@@ -46,6 +45,10 @@ TEST(PushResamplerTest, VerifiesBadInputParameters3) {
   EXPECT_DEATH(resampler.InitializeIfNeeded(16000, 16000, 0), "num_channels");
 }
 
+TEST(PushResamplerTest, VerifiesBadInputParameters4) {
+  PushResampler<int16_t> resampler;
+  EXPECT_DEATH(resampler.InitializeIfNeeded(16000, 16000, 3), "num_channels");
+}
 #endif
 #endif
 

@@ -20,7 +20,8 @@ int32_t VideoCaptureMF::Init(const char* device_id) {
   return 0;
 }
 
-int32_t VideoCaptureMF::StartCapture(const VideoCaptureCapability& capability) {
+int32_t VideoCaptureMF::StartCapture(
+    const VideoCaptureCapability& capability) {
   return -1;
 }
 
@@ -32,7 +33,8 @@ bool VideoCaptureMF::CaptureStarted() {
   return false;
 }
 
-int32_t VideoCaptureMF::CaptureSettings(VideoCaptureCapability& settings) {
+int32_t VideoCaptureMF::CaptureSettings(
+    VideoCaptureCapability& settings) {
   return -1;
 }
 

@@ -17,8 +17,7 @@
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/fft_data.h"
 #include "modules/audio_processing/utility/ooura_fft.h"
-#include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
 
 namespace webrtc {
 
@@ -26,8 +25,6 @@ namespace webrtc {
 // FftData type.
 class Aec3Fft {
  public:
-  enum class Window { kRectangular, kHanning, kSqrtHanning };
-
   Aec3Fft() = default;
   // Computes the FFT. Note that both the input and output are modified.
   void Fft(std::array<float, kFftLength>* x, FftData* X) const {
@@ -43,24 +40,13 @@ class Aec3Fft {
     ooura_fft_.InverseFft(x->data());
   }
 
-  // Windows the input using a Hanning window, and then adds padding of
-  // kFftLengthBy2 initial zeros before computing the Fft.
-  void ZeroPaddedFft(rtc::ArrayView<const float> x,
-                     Window window,
-                     FftData* X) const;
+  // Pads the input with kFftLengthBy2 initial zeros before computing the Fft.
+  void ZeroPaddedFft(rtc::ArrayView<const float> x, FftData* X) const;
 
   // Concatenates the kFftLengthBy2 values long x and x_old before computing the
   // Fft. After that, x is copied to x_old.
   void PaddedFft(rtc::ArrayView<const float> x,
-                 rtc::ArrayView<const float> x_old,
-                 FftData* X) const {
-    PaddedFft(x, x_old, Window::kRectangular, X);
-  }
-
-  // Padded Fft using a time-domain window.
-  void PaddedFft(rtc::ArrayView<const float> x,
-                 rtc::ArrayView<const float> x_old,
-                 Window window,
+                 rtc::ArrayView<float> x_old,
                  FftData* X) const;
 
  private:

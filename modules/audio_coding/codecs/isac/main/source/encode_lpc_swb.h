@@ -19,8 +19,9 @@
 #ifndef MODULES_AUDIO_CODING_CODECS_ISAC_MAIN_SOURCE_ENCODE_LPC_SWB_H_
 #define MODULES_AUDIO_CODING_CODECS_ISAC_MAIN_SOURCE_ENCODE_LPC_SWB_H_
 
-#include "modules/audio_coding/codecs/isac/main/source/settings.h"
-#include "modules/audio_coding/codecs/isac/main/source/structs.h"
+#include "settings.h"
+#include "structs.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 /******************************************************************************
  * WebRtcIsac_RemoveLarMean()
@@ -38,7 +39,9 @@
  *
  *
  */
-int16_t WebRtcIsac_RemoveLarMean(double* lar, int16_t bandwidth);
+int16_t WebRtcIsac_RemoveLarMean(
+    double*     lar,
+    int16_t bandwidth);
 
 /******************************************************************************
  * WebRtcIsac_DecorrelateIntraVec()
@@ -56,9 +59,11 @@ int16_t WebRtcIsac_RemoveLarMean(double* lar, int16_t bandwidth);
  * Output:
  *      -out                : decorrelated LAR vectors.
  */
-int16_t WebRtcIsac_DecorrelateIntraVec(const double* inLAR,
-                                       double* out,
-                                       int16_t bandwidth);
+int16_t WebRtcIsac_DecorrelateIntraVec(
+    const double* inLAR,
+    double*       out,
+    int16_t   bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_DecorrelateInterVec()
@@ -77,9 +82,11 @@ int16_t WebRtcIsac_DecorrelateIntraVec(const double* inLAR,
  * Output:
  *      -out                : decorrelated LAR vectors.
  */
-int16_t WebRtcIsac_DecorrelateInterVec(const double* data,
-                                       double* out,
-                                       int16_t bandwidth);
+int16_t WebRtcIsac_DecorrelateInterVec(
+    const double* data,
+    double*       out,
+    int16_t   bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_QuantizeUncorrLar()
@@ -95,7 +102,11 @@ int16_t WebRtcIsac_DecorrelateInterVec(const double* data,
  *      -data               : quantized version of the input.
  *      -idx                : pointer to quantization indices.
  */
-double WebRtcIsac_QuantizeUncorrLar(double* data, int* idx, int16_t bandwidth);
+double WebRtcIsac_QuantizeUncorrLar(
+    double*     data,
+    int*        idx,
+    int16_t bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_CorrelateIntraVec()
@@ -110,9 +121,11 @@ double WebRtcIsac_QuantizeUncorrLar(double* data, int* idx, int16_t bandwidth);
  * Output:
  *      -out                : correlated parametrs.
  */
-int16_t WebRtcIsac_CorrelateIntraVec(const double* data,
-                                     double* out,
-                                     int16_t bandwidth);
+int16_t WebRtcIsac_CorrelateIntraVec(
+    const double* data,
+    double*       out,
+    int16_t   bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_CorrelateInterVec()
@@ -127,15 +140,17 @@ int16_t WebRtcIsac_CorrelateIntraVec(const double* data,
  * Output:
  *      -out                : correlated parametrs.
  */
-int16_t WebRtcIsac_CorrelateInterVec(const double* data,
-                                     double* out,
-                                     int16_t bandwidth);
+int16_t WebRtcIsac_CorrelateInterVec(
+    const double* data,
+    double*       out,
+    int16_t   bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_AddLarMean()
  *
  * This is the inverse of WebRtcIsac_RemoveLarMean()
- *
+ * 
  * Input:
  *      -data               : pointer to mean-removed LAR:s.
  *      -bandwidth          : indicates if the given LAR vectors belong
@@ -144,7 +159,10 @@ int16_t WebRtcIsac_CorrelateInterVec(const double* data,
  * Output:
  *      -data               : pointer to LARs.
  */
-int16_t WebRtcIsac_AddLarMean(double* data, int16_t bandwidth);
+int16_t WebRtcIsac_AddLarMean(
+    double*     data,
+    int16_t bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_DequantizeLpcParam()
@@ -159,9 +177,11 @@ int16_t WebRtcIsac_AddLarMean(double* data, int16_t bandwidth);
  * Output:
  *      -out                : pointer to quantized values.
  */
-int16_t WebRtcIsac_DequantizeLpcParam(const int* idx,
-                                      double* out,
-                                      int16_t bandwidth);
+int16_t WebRtcIsac_DequantizeLpcParam(
+    const int*  idx,
+    double*     out,
+    int16_t bandwidth);
+
 
 /******************************************************************************
  * WebRtcIsac_ToLogDomainRemoveMean()
@@ -174,7 +194,9 @@ int16_t WebRtcIsac_DequantizeLpcParam(const int* idx,
  * Output:
  *      -lpcGain            : mean-removed in log domain.
  */
-int16_t WebRtcIsac_ToLogDomainRemoveMean(double* lpGains);
+int16_t WebRtcIsac_ToLogDomainRemoveMean(
+    double* lpGains);
+
 
 /******************************************************************************
  * WebRtcIsac_DecorrelateLPGain()
@@ -188,13 +210,16 @@ int16_t WebRtcIsac_ToLogDomainRemoveMean(double* lpGains);
  * Output:
  *      -out                : decorrelated parameters.
  */
-int16_t WebRtcIsac_DecorrelateLPGain(const double* data, double* out);
+int16_t WebRtcIsac_DecorrelateLPGain(
+    const double* data,
+    double*       out);
+
 
 /******************************************************************************
  * WebRtcIsac_QuantizeLpcGain()
  *
  * Quantize the decorrelated log-domain gains.
- *
+ * 
  * Input:
  *      -lpcGain            : uncorrelated LPC gains.
  *
@@ -202,7 +227,10 @@ int16_t WebRtcIsac_DecorrelateLPGain(const double* data, double* out);
  *      -idx                : quantization indices
  *      -lpcGain            : quantized value of the inpt.
  */
-double WebRtcIsac_QuantizeLpcGain(double* lpGains, int* idx);
+double WebRtcIsac_QuantizeLpcGain(
+    double* lpGains,
+    int*    idx);
+
 
 /******************************************************************************
  * WebRtcIsac_DequantizeLpcGain()
@@ -215,7 +243,10 @@ double WebRtcIsac_QuantizeLpcGain(double* lpGains, int* idx);
  * Output:
  *      -lpcGains           : quantized values of the given parametes.
  */
-int16_t WebRtcIsac_DequantizeLpcGain(const int* idx, double* lpGains);
+int16_t WebRtcIsac_DequantizeLpcGain(
+    const int* idx,
+    double*    lpGains);
+
 
 /******************************************************************************
  * WebRtcIsac_CorrelateLpcGain()
@@ -228,7 +259,10 @@ int16_t WebRtcIsac_DequantizeLpcGain(const int* idx, double* lpGains);
  * Output:
  *      -out                : correlated parameters.
  */
-int16_t WebRtcIsac_CorrelateLpcGain(const double* data, double* out);
+int16_t WebRtcIsac_CorrelateLpcGain(
+    const double* data,
+    double*       out);
+
 
 /******************************************************************************
  * WebRtcIsac_AddMeanToLinearDomain()
@@ -241,6 +275,8 @@ int16_t WebRtcIsac_CorrelateLpcGain(const double* data, double* out);
  * Output:
  *      -lpcGain            : LPC gain in normal domain.
  */
-int16_t WebRtcIsac_AddMeanToLinearDomain(double* lpcGains);
+int16_t WebRtcIsac_AddMeanToLinearDomain(
+    double* lpcGains);
+
 
 #endif  // MODULES_AUDIO_CODING_CODECS_ISAC_MAIN_SOURCE_ENCODE_LPC_SWB_H_

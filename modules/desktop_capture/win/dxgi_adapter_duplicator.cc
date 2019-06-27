@@ -10,8 +10,8 @@
 
 #include "modules/desktop_capture/win/dxgi_adapter_duplicator.h"
 
-#include <DXGI.h>
 #include <comdef.h>
+#include <DXGI.h>
 
 #include <algorithm>
 
@@ -53,17 +53,17 @@ bool DxgiAdapterDuplicator::DoInitialize() {
     }
 
     if (error.Error() == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE) {
-      RTC_LOG(LS_WARNING) << "IDXGIAdapter::EnumOutputs returns "
-                             "NOT_CURRENTLY_AVAILABLE. This may happen when "
-                             "running in session 0.";
+      LOG(LS_WARNING) << "IDXGIAdapter::EnumOutputs returns "
+                         "NOT_CURRENTLY_AVAILABLE. This may happen when "
+                         "running in session 0.";
       break;
     }
 
     if (error.Error() != S_OK || !output) {
-      RTC_LOG(LS_WARNING) << "IDXGIAdapter::EnumOutputs returns an unexpected "
-                             "result "
-                          << error.ErrorMessage() << " with error code"
-                          << error.Error();
+      LOG(LS_WARNING) << "IDXGIAdapter::EnumOutputs returns an unexpected "
+                         "result "
+                      << error.ErrorMessage() << " with error code"
+                      << error.Error();
       continue;
     }
 
@@ -74,39 +74,36 @@ bool DxgiAdapterDuplicator::DoInitialize() {
         ComPtr<IDXGIOutput1> output1;
         error = output.As(&output1);
         if (error.Error() != S_OK || !output1) {
-          RTC_LOG(LS_WARNING)
-              << "Failed to convert IDXGIOutput to IDXGIOutput1, "
-                 "this usually means the system does not support "
-                 "DirectX 11";
+          LOG(LS_WARNING) << "Failed to convert IDXGIOutput to IDXGIOutput1, "
+                             "this usually means the system does not support "
+                             "DirectX 11";
           continue;
         }
         DxgiOutputDuplicator duplicator(device_, output1, desc);
         if (!duplicator.Initialize()) {
-          RTC_LOG(LS_WARNING) << "Failed to initialize DxgiOutputDuplicator on "
-                                 "output "
-                              << i;
+          LOG(LS_WARNING) << "Failed to initialize DxgiOutputDuplicator on "
+                             "output "
+                          << i;
           continue;
         }
 
         duplicators_.push_back(std::move(duplicator));
         desktop_rect_.UnionWith(duplicators_.back().desktop_rect());
       } else {
-        RTC_LOG(LS_ERROR) << (desc.AttachedToDesktop ? "Attached" : "Detached")
-                          << " output " << i << " ("
-                          << desc.DesktopCoordinates.top << ", "
-                          << desc.DesktopCoordinates.left << ") - ("
-                          << desc.DesktopCoordinates.bottom << ", "
-                          << desc.DesktopCoordinates.right << ") is ignored.";
+        LOG(LS_ERROR) << (desc.AttachedToDesktop ? "Attached" : "Detached")
+                      << " output " << i << " (" << desc.DesktopCoordinates.top
+                      << ", " << desc.DesktopCoordinates.left << ") - ("
+                      << desc.DesktopCoordinates.bottom << ", "
+                      << desc.DesktopCoordinates.right << ") is ignored.";
       }
     } else {
-      RTC_LOG(LS_WARNING) << "Failed to get output description of device " << i
-                          << ", ignore.";
+      LOG(LS_WARNING) << "Failed to get output description of device " << i
+                      << ", ignore.";
     }
   }
 
   if (duplicators_.empty()) {
-    RTC_LOG(LS_WARNING)
-        << "Cannot initialize any DxgiOutputDuplicator instance.";
+    LOG(LS_WARNING) << "Cannot initialize any DxgiOutputDuplicator instance.";
   }
 
   return !duplicators_.empty();

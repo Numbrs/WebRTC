@@ -13,7 +13,9 @@
 namespace webrtc {
 
 MockAudioEncoder::MockAudioEncoder() = default;
-MockAudioEncoder::~MockAudioEncoder() = default;
+MockAudioEncoder::~MockAudioEncoder() {
+  Die();
+}
 
 MockAudioEncoder::FakeEncoding::FakeEncoding(
     const AudioEncoder::EncodedInfo& info)

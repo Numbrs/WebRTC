@@ -7,9 +7,7 @@
 # be found in the AUTHORS file in the root of the source tree.
 
 import("../../webrtc.gni")
-if (rtc_enable_protobuf) {
-  import("//third_party/protobuf/proto_library.gni")
-}
+import("//third_party/protobuf/proto_library.gni")
 
 if (rtc_enable_protobuf) {
   proto_library("network_tester_config_proto") {
@@ -43,16 +41,18 @@ if (rtc_enable_protobuf) {
     deps = [
       ":network_tester_config_proto",
       ":network_tester_packet_proto",
+      "../../api:optional",
       "../../p2p",
-      "../../rtc_base:checks",
       "../../rtc_base:protobuf_utils",
-      "../../rtc_base:rtc_base",
       "../../rtc_base:rtc_base_approved",
       "../../rtc_base:rtc_task_queue",
       "../../rtc_base:sequenced_task_checker",
-      "../../rtc_base/third_party/sigslot:sigslot",
-      "//third_party/abseil-cpp/absl/types:optional",
     ]
+
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
   }
 
   network_tester_unittests_resources = [
@@ -73,14 +73,19 @@ if (rtc_enable_protobuf) {
   rtc_source_set("network_tester_unittests") {
     testonly = true
 
+    # Skip restricting visibility on mobile platforms since the tests on those
+    # gets additional generated targets which would require many lines here to
+    # cover (which would be confusing to read and hard to maintain).
+    if (!is_android && !is_ios) {
+      visibility = [ "..:tools_unittests" ]
+    }
     sources = [
       "network_tester_unittest.cc",
     ]
 
     deps = [
       ":network_tester",
-      "../../rtc_base:gunit_helpers",
-      "../../test:fileutils",
+      "../../rtc_base:rtc_base_tests_utils",
       "../../test:test_support",
       "//testing/gtest",
     ]
@@ -89,9 +94,17 @@ if (rtc_enable_protobuf) {
       deps += [ ":network_tester_unittests_bundle_data" ]
     }
 
-    defines = [ "WEBRTC_NETWORK_TESTER_TEST_ENABLED" ]
+    defines = [
+      "GTEST_RELATIVE_PATH",
+      "WEBRTC_NETWORK_TESTER_TEST_ENABLED",
+    ]
 
     data = network_tester_unittests_resources
+
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
   }
 
   rtc_executable("network_tester_server") {
@@ -102,6 +115,11 @@ if (rtc_enable_protobuf) {
     deps = [
       ":network_tester",
     ]
+
+    if (!build_with_chromium && is_clang) {
+      # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
+      suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+    }
   }
 }
 
@@ -115,6 +133,7 @@ if (is_android) {
       ":NetworkTesterMobile_javalib",
       ":NetworkTesterMobile_resources",
       "../../rtc_base:base_java",
+      "//base:base_java",
     ]
 
     shared_libraries = [ "../../rtc_tools/network_tester:network_tester_so" ]
@@ -122,7 +141,7 @@ if (is_android) {
 
   android_library("NetworkTesterMobile_javalib") {
     testonly = true
-    android_manifest_for_lint = "androidapp/AndroidManifest.xml"
+    android_manifest = "androidapp/AndroidManifest.xml"
 
     java_files = [
       "androidapp/src/com/google/media/networktester/MainActivity.java",
@@ -148,6 +167,7 @@ if (is_android) {
 
     deps = [
       ":network_tester",
+      "../../system_wrappers:field_trial_default",
     ]
 
     suppressed_configs += [ "//build/config/android:hide_all_but_jni_onload" ]

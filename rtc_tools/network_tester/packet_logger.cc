@@ -9,9 +9,8 @@
  */
 #include "rtc_tools/network_tester/packet_logger.h"
 
-#include <string>
-
 #include "rtc_base/checks.h"
+#include "rtc_base/protobuf_utils.h"
 
 namespace webrtc {
 
@@ -32,7 +31,7 @@ void PacketLogger::LogPacket(const NetworkTesterPacket& packet) {
   // | Size of the next | proto   | Size of the next | ... | proto   |
   // | proto message    | message | proto message    |     | message |
   // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  std::string packet_data;
+  ProtoString packet_data;
   packet.SerializeToString(&packet_data);
   RTC_DCHECK_LE(packet_data.length(), 255);
   RTC_DCHECK_GE(packet_data.length(), 0);

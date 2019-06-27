@@ -12,7 +12,8 @@
 #define MODULES_AUDIO_PROCESSING_NS_NOISE_SUPPRESSION_X_H_
 
 #include <stddef.h>
-#include <stdint.h>
+
+#include "typedefs.h"  // NOLINT(build/include)
 
 typedef struct NsxHandleT NsxHandle;
 
@@ -23,7 +24,7 @@ extern "C" {
 /*
  * This function creates an instance of the fixed point Noise Suppression.
  */
-NsxHandle* WebRtcNsx_Create(void);
+NsxHandle* WebRtcNsx_Create();
 
 /*
  * This function frees the dynamic memory of a specified Noise Suppression
@@ -103,7 +104,7 @@ const uint32_t* WebRtcNsx_noise_estimate(const NsxHandle* nsxInst,
  *
  * Return value         : Number of frequency bins.
  */
-size_t WebRtcNsx_num_freq(void);
+size_t WebRtcNsx_num_freq();
 
 #ifdef __cplusplus
 }

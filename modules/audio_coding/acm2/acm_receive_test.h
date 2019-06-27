@@ -11,18 +11,18 @@
 #ifndef MODULES_AUDIO_CODING_ACM2_ACM_RECEIVE_TEST_H_
 #define MODULES_AUDIO_CODING_ACM2_ACM_RECEIVE_TEST_H_
 
-#include <stddef.h>  // for size_t
 #include <memory>
 #include <string>
 
 #include "api/audio_codecs/audio_decoder_factory.h"
-#include "api/scoped_refptr.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "rtc_base/scoped_ref_ptr.h"
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 class AudioCodingModule;
 class AudioDecoder;
+struct CodecInst;
 
 namespace test {
 class AudioSink;
@@ -30,11 +30,10 @@ class PacketSource;
 
 class AcmReceiveTestOldApi {
  public:
-  enum NumOutputChannels : size_t {
+  enum NumOutputChannels {
     kArbitraryChannels = 0,
     kMonoOutput = 1,
-    kStereoOutput = 2,
-    kQuadOutput = 4
+    kStereoOutput = 2
   };
 
   AcmReceiveTestOldApi(PacketSource* packet_source,

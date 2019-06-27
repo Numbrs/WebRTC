@@ -15,7 +15,8 @@
 #include <string>
 
 #include "api/array_view.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 namespace test {
@@ -25,7 +26,10 @@ namespace test {
 class AudioLoop {
  public:
   AudioLoop()
-      : next_index_(0), loop_length_samples_(0), block_length_samples_(0) {}
+      : next_index_(0),
+        loop_length_samples_(0),
+        block_length_samples_(0) {
+  }
 
   virtual ~AudioLoop() {}
 
@@ -34,8 +38,7 @@ class AudioLoop {
   // greater. Otherwise, the loop length is the same as the file length.
   // The audio will be delivered in blocks of |block_length_samples|.
   // Returns false if the initialization failed, otherwise true.
-  bool Init(const std::string file_name,
-            size_t max_loop_length_samples,
+  bool Init(const std::string file_name, size_t max_loop_length_samples,
             size_t block_length_samples);
 
   // Returns a (pointer,size) pair for the next block of audio. The size is

@@ -14,6 +14,7 @@
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 
@@ -25,7 +26,7 @@ class DummyCallback : public RecoveredPacketReceiver {
 
 void FuzzOneInput(const uint8_t* data, size_t size) {
   constexpr size_t kMinDataNeeded = 12;
-  if (size < kMinDataNeeded || size > 2000) {
+  if (size < kMinDataNeeded) {
     return;
   }
 

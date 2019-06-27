@@ -9,15 +9,11 @@
  */
 
 #include "rtc_base/rate_limiter.h"
-
-#include <limits>
-
-#include "absl/types/optional.h"
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 
-RateLimiter::RateLimiter(Clock* clock, int64_t max_window_ms)
+RateLimiter::RateLimiter(const Clock* clock, int64_t max_window_ms)
     : clock_(clock),
       current_rate_(max_window_ms, RateStatistics::kBpsScale),
       window_size_ms_(max_window_ms),
@@ -33,7 +29,7 @@ RateLimiter::~RateLimiter() {}
 bool RateLimiter::TryUseRate(size_t packet_size_bytes) {
   rtc::CritScope cs(&lock_);
   int64_t now_ms = clock_->TimeInMilliseconds();
-  absl::optional<uint32_t> current_rate = current_rate_.Rate(now_ms);
+  rtc::Optional<uint32_t> current_rate = current_rate_.Rate(now_ms);
   if (current_rate) {
     // If there is a current rate, check if adding bytes would cause maximum
     // bitrate target to be exceeded. If there is NOT a valid current rate,

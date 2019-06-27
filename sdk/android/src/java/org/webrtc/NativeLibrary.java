@@ -28,20 +28,20 @@ class NativeLibrary {
   }
 
   private static Object lock = new Object();
-  private static boolean libraryLoaded;
+  private static boolean libraryLoaded = false;
 
   /**
    * Loads the native library. Clients should call PeerConnectionFactory.initialize. It will call
    * this method for them.
    */
-  static void initialize(NativeLibraryLoader loader, String libraryName) {
+  static void initialize(NativeLibraryLoader loader) {
     synchronized (lock) {
       if (libraryLoaded) {
         Logging.d(TAG, "Native library has already been loaded.");
         return;
       }
-      Logging.d(TAG, "Loading native library: " + libraryName);
-      libraryLoaded = loader.load(libraryName);
+      Logging.d(TAG, "Loading native library.");
+      libraryLoaded = loader.load("jingle_peerconnection_so");
     }
   }
 

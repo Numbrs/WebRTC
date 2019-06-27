@@ -9,9 +9,11 @@
  */
 
 #include "rtc_base/cpu_time.h"
-
+#include <algorithm>
+#include <memory>
 #include "rtc_base/platform_thread.h"
-#include "rtc_base/time_utils.h"
+#include "rtc_base/timeutils.h"
+#include "system_wrappers/include/cpu_info.h"
 #include "system_wrappers/include/sleep.h"
 #include "test/gtest.h"
 
@@ -84,10 +86,10 @@ TEST(CpuTimeTest, MAYBE_TEST(TwoThreads)) {
             kAllowedErrorMillisecs * kNumNanosecsPerMillisec);
   // Total process time is at least twice working threads' CPU time.
   // Therefore process and thread times are correctly related.
-  EXPECT_GE(process_duration_nanos,
-            kWorkingThreads *
-                (kProcessingTimeMillisecs - kAllowedErrorMillisecs) *
-                kNumNanosecsPerMillisec);
+  EXPECT_GE(
+      process_duration_nanos,
+      kWorkingThreads * (kProcessingTimeMillisecs - kAllowedErrorMillisecs)
+      * kNumNanosecsPerMillisec);
 }
 
 TEST(CpuTimeTest, MAYBE_TEST(Sleeping)) {

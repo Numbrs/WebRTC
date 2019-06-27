@@ -11,9 +11,8 @@
 #ifndef RTC_BASE_HELPERS_H_
 #define RTC_BASE_HELPERS_H_
 
-#include <stddef.h>
-#include <stdint.h>
 #include <string>
+#include "rtc_base/basictypes.h"
 
 namespace rtc {
 
@@ -38,8 +37,7 @@ bool CreateRandomString(size_t length, std::string* str);
 // number generator failed.
 // For ease of implementation, the function requires that the table
 // size evenly divide 256; otherwise, it returns false.
-bool CreateRandomString(size_t length,
-                        const std::string& table,
+bool CreateRandomString(size_t length, const std::string& table,
                         std::string* str);
 
 // Generates (cryptographically) random data of the given length.
@@ -60,10 +58,6 @@ uint32_t CreateRandomNonZeroId();
 
 // Generates a random double between 0.0 (inclusive) and 1.0 (exclusive).
 double CreateRandomDouble();
-
-// Compute moving average with the given ratio between the previous average
-// value and the current value.
-double GetNextMovingAverage(double prev_average, double cur, double ratio);
 
 }  // namespace rtc
 

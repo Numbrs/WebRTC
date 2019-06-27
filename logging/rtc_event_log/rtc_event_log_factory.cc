@@ -10,8 +10,6 @@
 
 #include "logging/rtc_event_log/rtc_event_log_factory.h"
 
-#include <utility>
-
 #include "logging/rtc_event_log/rtc_event_log.h"
 
 namespace webrtc {

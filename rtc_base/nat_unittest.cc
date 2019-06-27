@@ -8,65 +8,48 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <string.h>
 #include <algorithm>
 #include <memory>
 #include <string>
-#include <vector>
 
-#include "absl/memory/memory.h"
-#include "rtc_base/async_packet_socket.h"
-#include "rtc_base/async_socket.h"
-#include "rtc_base/async_tcp_socket.h"
-#include "rtc_base/async_udp_socket.h"
+#include "rtc_base/asynctcpsocket.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/ip_address.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/nat_server.h"
-#include "rtc_base/nat_socket_factory.h"
-#include "rtc_base/nat_types.h"
-#include "rtc_base/net_helpers.h"
+#include "rtc_base/natserver.h"
+#include "rtc_base/natsocketfactory.h"
+#include "rtc_base/nethelpers.h"
 #include "rtc_base/network.h"
-#include "rtc_base/physical_socket_server.h"
-#include "rtc_base/socket_address.h"
-#include "rtc_base/socket_factory.h"
-#include "rtc_base/socket_server.h"
-#include "rtc_base/test_client.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
-#include "rtc_base/thread.h"
-#include "rtc_base/virtual_socket_server.h"
-#include "test/gtest.h"
+#include "rtc_base/physicalsocketserver.h"
+#include "rtc_base/ptr_util.h"
+#include "rtc_base/testclient.h"
+#include "rtc_base/virtualsocketserver.h"
 
-namespace rtc {
-namespace {
+using namespace rtc;
 
-bool CheckReceive(TestClient* client,
-                  bool should_receive,
-                  const char* buf,
-                  size_t size) {
-  return (should_receive) ? client->CheckNextPacket(buf, size, 0)
-                          : client->CheckNoPacket();
+bool CheckReceive(
+    TestClient* client, bool should_receive, const char* buf, size_t size) {
+  return (should_receive) ?
+      client->CheckNextPacket(buf, size, 0) :
+      client->CheckNoPacket();
 }
 
-TestClient* CreateTestClient(SocketFactory* factory,
-                             const SocketAddress& local_addr) {
+TestClient* CreateTestClient(
+      SocketFactory* factory, const SocketAddress& local_addr) {
   return new TestClient(
-      absl::WrapUnique(AsyncUDPSocket::Create(factory, local_addr)));
+      WrapUnique(AsyncUDPSocket::Create(factory, local_addr)));
 }
 
 TestClient* CreateTCPTestClient(AsyncSocket* socket) {
-  return new TestClient(absl::make_unique<AsyncTCPSocket>(socket, false));
+  return new TestClient(MakeUnique<AsyncTCPSocket>(socket, false));
 }
 
 // Tests that when sending from internal_addr to external_addrs through the
 // NAT type specified by nat_type, all external addrs receive the sent packet
 // and, if exp_same is true, all use the same mapped-address on the NAT.
-void TestSend(SocketServer* internal,
-              const SocketAddress& internal_addr,
-              SocketServer* external,
-              const SocketAddress external_addrs[4],
-              NATType nat_type,
-              bool exp_same) {
+void TestSend(
+      SocketServer* internal, const SocketAddress& internal_addr,
+      SocketServer* external, const SocketAddress external_addrs[4],
+      NATType nat_type, bool exp_same) {
   Thread th_int(internal);
   Thread th_ext(external);
 
@@ -74,8 +57,9 @@ void TestSend(SocketServer* internal,
   server_addr.SetPort(0);  // Auto-select a port
   NATServer* nat = new NATServer(nat_type, internal, server_addr, server_addr,
                                  external, external_addrs[0]);
-  NATSocketFactory* natsf = new NATSocketFactory(
-      internal, nat->internal_udp_address(), nat->internal_tcp_address());
+  NATSocketFactory* natsf = new NATSocketFactory(internal,
+                                                 nat->internal_udp_address(),
+                                                 nat->internal_tcp_address());
 
   TestClient* in = CreateTestClient(natsf, internal_addr);
   TestClient* out[4];
@@ -114,13 +98,10 @@ void TestSend(SocketServer* internal,
 
 // Tests that when sending from external_addrs to internal_addr, the packet
 // is delivered according to the specified filter_ip and filter_port rules.
-void TestRecv(SocketServer* internal,
-              const SocketAddress& internal_addr,
-              SocketServer* external,
-              const SocketAddress external_addrs[4],
-              NATType nat_type,
-              bool filter_ip,
-              bool filter_port) {
+void TestRecv(
+      SocketServer* internal, const SocketAddress& internal_addr,
+      SocketServer* external, const SocketAddress external_addrs[4],
+      NATType nat_type, bool filter_ip, bool filter_port) {
   Thread th_int(internal);
   Thread th_ext(external);
 
@@ -128,8 +109,9 @@ void TestRecv(SocketServer* internal,
   server_addr.SetPort(0);  // Auto-select a port
   NATServer* nat = new NATServer(nat_type, internal, server_addr, server_addr,
                                  external, external_addrs[0]);
-  NATSocketFactory* natsf = new NATSocketFactory(
-      internal, nat->internal_udp_address(), nat->internal_tcp_address());
+  NATSocketFactory* natsf = new NATSocketFactory(internal,
+                                                 nat->internal_udp_address(),
+                                                 nat->internal_tcp_address());
 
   TestClient* in = CreateTestClient(natsf, internal_addr);
   TestClient* out[4];
@@ -166,33 +148,31 @@ void TestRecv(SocketServer* internal,
 }
 
 // Tests that NATServer allocates bindings properly.
-void TestBindings(SocketServer* internal,
-                  const SocketAddress& internal_addr,
-                  SocketServer* external,
-                  const SocketAddress external_addrs[4]) {
-  TestSend(internal, internal_addr, external, external_addrs, NAT_OPEN_CONE,
-           true);
+void TestBindings(
+    SocketServer* internal, const SocketAddress& internal_addr,
+    SocketServer* external, const SocketAddress external_addrs[4]) {
+  TestSend(internal, internal_addr, external, external_addrs,
+           NAT_OPEN_CONE, true);
   TestSend(internal, internal_addr, external, external_addrs,
            NAT_ADDR_RESTRICTED, true);
   TestSend(internal, internal_addr, external, external_addrs,
            NAT_PORT_RESTRICTED, true);
-  TestSend(internal, internal_addr, external, external_addrs, NAT_SYMMETRIC,
-           false);
+  TestSend(internal, internal_addr, external, external_addrs,
+           NAT_SYMMETRIC, false);
 }
 
 // Tests that NATServer filters packets properly.
-void TestFilters(SocketServer* internal,
-                 const SocketAddress& internal_addr,
-                 SocketServer* external,
-                 const SocketAddress external_addrs[4]) {
-  TestRecv(internal, internal_addr, external, external_addrs, NAT_OPEN_CONE,
-           false, false);
+void TestFilters(
+    SocketServer* internal, const SocketAddress& internal_addr,
+    SocketServer* external, const SocketAddress external_addrs[4]) {
+  TestRecv(internal, internal_addr, external, external_addrs,
+           NAT_OPEN_CONE, false, false);
   TestRecv(internal, internal_addr, external, external_addrs,
            NAT_ADDR_RESTRICTED, true, false);
   TestRecv(internal, internal_addr, external, external_addrs,
            NAT_PORT_RESTRICTED, true, true);
-  TestRecv(internal, internal_addr, external, external_addrs, NAT_SYMMETRIC,
-           true, true);
+  TestRecv(internal, internal_addr, external, external_addrs,
+           NAT_SYMMETRIC, true, true);
 }
 
 bool TestConnectivity(const SocketAddress& src, const IPAddress& dst) {
@@ -221,6 +201,7 @@ bool TestConnectivity(const SocketAddress& src, const IPAddress& dst) {
 
 void TestPhysicalInternal(const SocketAddress& int_addr) {
   BasicNetworkManager network_manager;
+  network_manager.set_ipv6_enabled(true);
   network_manager.StartUpdating();
   // Process pending messages so the network list is updated.
   Thread::Current()->ProcessMessages(0);
@@ -234,7 +215,7 @@ void TestPhysicalInternal(const SocketAddress& int_addr) {
                                 }),
                  networks.end());
   if (networks.empty()) {
-    RTC_LOG(LS_WARNING) << "Not enough network adapters for test.";
+    LOG(LS_WARNING) << "Not enough network adapters for test.";
     return;
   }
 
@@ -243,7 +224,7 @@ void TestPhysicalInternal(const SocketAddress& int_addr) {
   // Find an available IP with matching family. The test breaks if int_addr
   // can't talk to ip, so check for connectivity as well.
   for (std::vector<Network*>::iterator it = networks.begin();
-       it != networks.end(); ++it) {
+      it != networks.end(); ++it) {
     const IPAddress& ip = (*it)->GetBestIP();
     if (ip.family() == int_addr.family() && TestConnectivity(int_addr, ip)) {
       ext_addr2.SetIP(ip);
@@ -251,16 +232,18 @@ void TestPhysicalInternal(const SocketAddress& int_addr) {
     }
   }
   if (ext_addr2.IsNil()) {
-    RTC_LOG(LS_WARNING) << "No available IP of same family as "
-                        << int_addr.ToString();
+    LOG(LS_WARNING) << "No available IP of same family as " << int_addr;
     return;
   }
 
-  RTC_LOG(LS_INFO) << "selected ip " << ext_addr2.ipaddr().ToString();
+  LOG(LS_INFO) << "selected ip " << ext_addr2.ipaddr();
 
   SocketAddress ext_addrs[4] = {
-      SocketAddress(ext_addr1), SocketAddress(ext_addr2),
-      SocketAddress(ext_addr1), SocketAddress(ext_addr2)};
+      SocketAddress(ext_addr1),
+      SocketAddress(ext_addr2),
+      SocketAddress(ext_addr1),
+      SocketAddress(ext_addr2)
+  };
 
   std::unique_ptr<PhysicalSocketServer> int_pss(new PhysicalSocketServer());
   std::unique_ptr<PhysicalSocketServer> ext_pss(new PhysicalSocketServer());
@@ -277,7 +260,7 @@ TEST(NatTest, TestPhysicalIPv6) {
   if (HasIPv6Enabled()) {
     TestPhysicalInternal(SocketAddress("::1", 0));
   } else {
-    RTC_LOG(LS_WARNING) << "No IPv6, skipping";
+    LOG(LS_WARNING) << "No IPv6, skipping";
   }
 }
 
@@ -317,7 +300,7 @@ TEST(NatTest, TestVirtualIPv6) {
   if (HasIPv6Enabled()) {
     TestVirtualInternal(AF_INET6);
   } else {
-    RTC_LOG(LS_WARNING) << "No IPv6, skipping";
+    LOG(LS_WARNING) << "No IPv6, skipping";
   }
 }
 
@@ -344,13 +327,16 @@ class NatTcpTest : public testing::Test, public sigslot::has_slots<> {
     ext_thread_->Start();
   }
 
-  void OnConnectEvent(AsyncSocket* socket) { connected_ = true; }
+  void OnConnectEvent(AsyncSocket* socket) {
+    connected_ = true;
+  }
 
   void OnAcceptEvent(AsyncSocket* socket) {
     accepted_.reset(server_->Accept(nullptr));
   }
 
-  void OnCloseEvent(AsyncSocket* socket, int error) {}
+  void OnCloseEvent(AsyncSocket* socket, int error) {
+  }
 
   void ConnectEvents() {
     server_->SignalReadEvent.connect(this, &NatTcpTest::OnAcceptEvent);
@@ -372,11 +358,11 @@ class NatTcpTest : public testing::Test, public sigslot::has_slots<> {
 };
 
 TEST_F(NatTcpTest, DISABLED_TestConnectOut) {
-  server_.reset(ext_vss_->CreateAsyncSocket(AF_INET, SOCK_STREAM));
+  server_.reset(ext_vss_->CreateAsyncSocket(SOCK_STREAM));
   server_->Bind(ext_addr_);
   server_->Listen(5);
 
-  client_.reset(natsf_->CreateAsyncSocket(AF_INET, SOCK_STREAM));
+  client_.reset(natsf_->CreateAsyncSocket(SOCK_STREAM));
   EXPECT_GE(0, client_->Bind(int_addr_));
   EXPECT_GE(0, client_->Connect(server_->GetLocalAddress()));
 
@@ -400,6 +386,4 @@ TEST_F(NatTcpTest, DISABLED_TestConnectOut) {
   out->Send(buf, len);
   EXPECT_TRUE(in->CheckNextPacket(buf, len, &trans_addr));
 }
-
-}  // namespace
-}  // namespace rtc
+// #endif

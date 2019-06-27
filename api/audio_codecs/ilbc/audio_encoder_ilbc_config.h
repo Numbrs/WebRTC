@@ -13,6 +13,7 @@
 
 namespace webrtc {
 
+// NOTE: This struct is still under development and may change without notice.
 struct AudioEncoderIlbcConfig {
   bool IsOk() const {
     return (frame_size_ms == 20 || frame_size_ms == 30 || frame_size_ms == 40 ||

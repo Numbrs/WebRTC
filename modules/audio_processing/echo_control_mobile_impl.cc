@@ -11,28 +11,26 @@
 #include "modules/audio_processing/echo_control_mobile_impl.h"
 
 #include <string.h>
-#include <cstdint>
 
 #include "modules/audio_processing/aecm/echo_control_mobile.h"
 #include "modules/audio_processing/audio_buffer.h"
-#include "modules/audio_processing/include/audio_processing.h"
-#include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
+#include "rtc_base/constructormagic.h"
+#include "rtc_base/logging.h"
 
 namespace webrtc {
 
 namespace {
-int16_t MapSetting(EchoControlMobileImpl::RoutingMode mode) {
+int16_t MapSetting(EchoControlMobile::RoutingMode mode) {
   switch (mode) {
-    case EchoControlMobileImpl::kQuietEarpieceOrHeadset:
+    case EchoControlMobile::kQuietEarpieceOrHeadset:
       return 0;
-    case EchoControlMobileImpl::kEarpiece:
+    case EchoControlMobile::kEarpiece:
       return 1;
-    case EchoControlMobileImpl::kLoudEarpiece:
+    case EchoControlMobile::kLoudEarpiece:
       return 2;
-    case EchoControlMobileImpl::kSpeakerphone:
+    case EchoControlMobile::kSpeakerphone:
       return 3;
-    case EchoControlMobileImpl::kLoudSpeakerphone:
+    case EchoControlMobile::kLoudSpeakerphone:
       return 4;
   }
   RTC_NOTREACHED();
@@ -56,6 +54,10 @@ AudioProcessing::Error MapError(int err) {
   }
 }
 }  // namespace
+
+size_t EchoControlMobile::echo_path_size_bytes() {
+  return WebRtcAecm_echo_path_size_bytes();
+}
 
 struct EchoControlMobileImpl::StreamProperties {
   StreamProperties() = delete;
@@ -88,10 +90,17 @@ class EchoControlMobileImpl::Canceller {
     return state_;
   }
 
-  void Initialize(int sample_rate_hz) {
+  void Initialize(int sample_rate_hz,
+                  unsigned char* external_echo_path,
+                  size_t echo_path_size_bytes) {
     RTC_DCHECK(state_);
     int error = WebRtcAecm_Init(state_, sample_rate_hz);
     RTC_DCHECK_EQ(AudioProcessing::kNoError, error);
+    if (external_echo_path != NULL) {
+      error = WebRtcAecm_InitEchoPath(state_, external_echo_path,
+                                      echo_path_size_bytes);
+      RTC_DCHECK_EQ(AudioProcessing::kNoError, error);
+    }
   }
 
  private:
@@ -99,13 +108,27 @@ class EchoControlMobileImpl::Canceller {
   RTC_DISALLOW_COPY_AND_ASSIGN(Canceller);
 };
 
-EchoControlMobileImpl::EchoControlMobileImpl()
-    : routing_mode_(kSpeakerphone), comfort_noise_enabled_(false) {}
+EchoControlMobileImpl::EchoControlMobileImpl(rtc::CriticalSection* crit_render,
+                                             rtc::CriticalSection* crit_capture)
+    : crit_render_(crit_render),
+      crit_capture_(crit_capture),
+      routing_mode_(kSpeakerphone),
+      comfort_noise_enabled_(true),
+      external_echo_path_(NULL) {
+  RTC_DCHECK(crit_render);
+  RTC_DCHECK(crit_capture);
+}
 
-EchoControlMobileImpl::~EchoControlMobileImpl() {}
+EchoControlMobileImpl::~EchoControlMobileImpl() {
+    if (external_echo_path_ != NULL) {
+      delete [] external_echo_path_;
+      external_echo_path_ = NULL;
+    }
+}
 
 void EchoControlMobileImpl::ProcessRenderAudio(
     rtc::ArrayView<const int16_t> packed_render_audio) {
+  rtc::CritScope cs_capture(crit_capture_);
   if (!enabled_) {
     return;
   }
@@ -158,6 +181,7 @@ size_t EchoControlMobileImpl::NumCancellersRequired(
 
 int EchoControlMobileImpl::ProcessCaptureAudio(AudioBuffer* audio,
                                                int stream_delay_ms) {
+  rtc::CritScope cs_capture(crit_capture_);
   if (!enabled_) {
     return AudioProcessing::kNoError;
   }
@@ -194,7 +218,8 @@ int EchoControlMobileImpl::ProcessCaptureAudio(AudioBuffer* audio,
       ++handle_index;
     }
     for (size_t band = 1u; band < audio->num_bands(); ++band) {
-      memset(audio->split_bands(capture)[band], 0,
+      memset(audio->split_bands(capture)[band],
+             0,
              audio->num_frames_per_band() *
                  sizeof(audio->split_bands(capture)[band][0]));
     }
@@ -204,6 +229,8 @@ int EchoControlMobileImpl::ProcessCaptureAudio(AudioBuffer* audio,
 
 int EchoControlMobileImpl::Enable(bool enable) {
   // Ensure AEC and AECM are not both enabled.
+  rtc::CritScope cs_render(crit_render_);
+  rtc::CritScope cs_capture(crit_capture_);
   RTC_DCHECK(stream_properties_);
 
   if (enable &&
@@ -226,6 +253,7 @@ int EchoControlMobileImpl::Enable(bool enable) {
 }
 
 bool EchoControlMobileImpl::is_enabled() const {
+  rtc::CritScope cs(crit_capture_);
   return enabled_;
 }
 
@@ -233,26 +261,91 @@ int EchoControlMobileImpl::set_routing_mode(RoutingMode mode) {
   if (MapSetting(mode) == -1) {
     return AudioProcessing::kBadParameterError;
   }
+
+  {
+    rtc::CritScope cs(crit_capture_);
     routing_mode_ = mode;
+  }
   return Configure();
 }
 
-EchoControlMobileImpl::RoutingMode EchoControlMobileImpl::routing_mode() const {
+EchoControlMobile::RoutingMode EchoControlMobileImpl::routing_mode()
+    const {
+  rtc::CritScope cs(crit_capture_);
   return routing_mode_;
 }
 
 int EchoControlMobileImpl::enable_comfort_noise(bool enable) {
+  {
+    rtc::CritScope cs(crit_capture_);
     comfort_noise_enabled_ = enable;
+  }
   return Configure();
 }
 
 bool EchoControlMobileImpl::is_comfort_noise_enabled() const {
+  rtc::CritScope cs(crit_capture_);
   return comfort_noise_enabled_;
+}
+
+int EchoControlMobileImpl::SetEchoPath(const void* echo_path,
+                                       size_t size_bytes) {
+  {
+    rtc::CritScope cs_render(crit_render_);
+    rtc::CritScope cs_capture(crit_capture_);
+    if (echo_path == NULL) {
+      return AudioProcessing::kNullPointerError;
+    }
+    if (size_bytes != echo_path_size_bytes()) {
+      // Size mismatch
+      return AudioProcessing::kBadParameterError;
+    }
+
+    if (external_echo_path_ == NULL) {
+      external_echo_path_ = new unsigned char[size_bytes];
+    }
+    memcpy(external_echo_path_, echo_path, size_bytes);
+  }
+
+  // TODO(peah): Simplify once the Enable function has been removed from
+  // the public APM API.
+  RTC_DCHECK(stream_properties_);
+  Initialize(stream_properties_->sample_rate_hz,
+             stream_properties_->num_reverse_channels,
+             stream_properties_->num_output_channels);
+  return AudioProcessing::kNoError;
+}
+
+int EchoControlMobileImpl::GetEchoPath(void* echo_path,
+                                       size_t size_bytes) const {
+  rtc::CritScope cs(crit_capture_);
+  if (echo_path == NULL) {
+    return AudioProcessing::kNullPointerError;
+  }
+  if (size_bytes != echo_path_size_bytes()) {
+    // Size mismatch
+    return AudioProcessing::kBadParameterError;
+  }
+  if (!enabled_) {
+    return AudioProcessing::kNotEnabledError;
+  }
+
+  // Get the echo path from the first channel
+  int32_t err =
+      WebRtcAecm_GetEchoPath(cancellers_[0]->state(), echo_path, size_bytes);
+  if (err != 0) {
+    return MapError(err);
+  }
+
+  return AudioProcessing::kNoError;
 }
 
 void EchoControlMobileImpl::Initialize(int sample_rate_hz,
                                        size_t num_reverse_channels,
                                        size_t num_output_channels) {
+  rtc::CritScope cs_render(crit_render_);
+  rtc::CritScope cs_capture(crit_capture_);
+
   stream_properties_.reset(new StreamProperties(
       sample_rate_hz, num_reverse_channels, num_output_channels));
 
@@ -260,9 +353,9 @@ void EchoControlMobileImpl::Initialize(int sample_rate_hz,
     return;
   }
 
-  // AECM only supports 16 kHz or lower sample rates.
-  RTC_DCHECK_LE(stream_properties_->sample_rate_hz,
-                AudioProcessing::kSampleRate16kHz);
+  if (stream_properties_->sample_rate_hz > AudioProcessing::kSampleRate16kHz) {
+    LOG(LS_ERROR) << "AECM only supports 16 kHz or lower sample rates";
+  }
 
   cancellers_.resize(
       NumCancellersRequired(stream_properties_->num_output_channels,
@@ -272,12 +365,16 @@ void EchoControlMobileImpl::Initialize(int sample_rate_hz,
     if (!canceller) {
       canceller.reset(new Canceller());
     }
-    canceller->Initialize(sample_rate_hz);
+    canceller->Initialize(sample_rate_hz, external_echo_path_,
+                          echo_path_size_bytes());
   }
+
   Configure();
 }
 
 int EchoControlMobileImpl::Configure() {
+  rtc::CritScope cs_render(crit_render_);
+  rtc::CritScope cs_capture(crit_capture_);
   AecmConfig config;
   config.cngMode = comfort_noise_enabled_;
   config.echoMode = MapSetting(routing_mode_);

@@ -9,26 +9,27 @@
  */
 #include "common_video/h264/h264_bitstream_parser.h"
 
-#include <stdlib.h>
-#include <cstdint>
+#include <memory>
 #include <vector>
 
+#include "rtc_base/bitbuffer.h"
+#include "rtc_base/checks.h"
+
 #include "common_video/h264/h264_common.h"
-#include "rtc_base/bit_buffer.h"
 #include "rtc_base/logging.h"
 
 namespace {
 const int kMaxAbsQpDeltaValue = 51;
 const int kMinQpValue = 0;
 const int kMaxQpValue = 51;
-}  // namespace
+}
 
 namespace webrtc {
 
-#define RETURN_ON_FAIL(x, res)            \
-  if (!(x)) {                             \
-    RTC_LOG_F(LS_ERROR) << "FAILED: " #x; \
-    return res;                           \
+#define RETURN_ON_FAIL(x, res)        \
+  if (!(x)) {                         \
+    LOG_F(LS_ERROR) << "FAILED: " #x; \
+    return res;                       \
   }
 
 #define RETURN_INV_ON_FAIL(x) RETURN_ON_FAIL(x, kInvalidStream)
@@ -43,7 +44,7 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
   if (!sps_ || !pps_)
     return kInvalidStream;
 
-  last_slice_qp_delta_ = absl::nullopt;
+  last_slice_qp_delta_ = rtc::Optional<int32_t>();
   const std::vector<uint8_t> slice_rbsp =
       H264::ParseRbsp(source, source_length);
   if (slice_rbsp.size() < H264::kNaluTypeSize)
@@ -74,9 +75,9 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
     RETURN_INV_ON_FAIL(slice_reader.ReadBits(&bits_tmp, 2));
   }
   // frame_num: u(v)
-  // Represented by log2_max_frame_num bits.
+  // Represented by log2_max_frame_num_minus4 + 4 bits.
   RETURN_INV_ON_FAIL(
-      slice_reader.ReadBits(&bits_tmp, sps_->log2_max_frame_num));
+      slice_reader.ReadBits(&bits_tmp, sps_->log2_max_frame_num_minus4 + 4));
   uint32_t field_pic_flag = 0;
   if (sps_->frame_mbs_only_flag == 0) {
     // field_pic_flag: u(1)
@@ -91,10 +92,10 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
     RETURN_INV_ON_FAIL(slice_reader.ReadExponentialGolomb(&golomb_tmp));
   }
   // pic_order_cnt_lsb: u(v)
-  // Represented by sps_.log2_max_pic_order_cnt_lsb bits.
+  // Represented by sps_.log2_max_pic_order_cnt_lsb_minus4 + 4 bits.
   if (sps_->pic_order_cnt_type == 0) {
-    RETURN_INV_ON_FAIL(
-        slice_reader.ReadBits(&bits_tmp, sps_->log2_max_pic_order_cnt_lsb));
+    RETURN_INV_ON_FAIL(slice_reader.ReadBits(
+        &bits_tmp, sps_->log2_max_pic_order_cnt_lsb_minus4 + 4));
     if (pps_->bottom_field_pic_order_in_frame_present_flag &&
         field_pic_flag == 0) {
       // delta_pic_order_cnt_bottom: se(v)
@@ -140,7 +141,7 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
   }
   // assume nal_unit_type != 20 && nal_unit_type != 21:
   if (nalu_type == 20 || nalu_type == 21) {
-    RTC_LOG(LS_ERROR) << "Unsupported nal unit type.";
+    LOG(LS_ERROR) << "Unsupported nal unit type.";
     return kUnsupportedStream;
   }
   // if (nal_unit_type == 20 || nal_unit_type == 21)
@@ -200,7 +201,7 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
   if ((pps_->weighted_pred_flag && (slice_type == H264::SliceType::kP ||
                                     slice_type == H264::SliceType::kSp)) ||
       (pps_->weighted_bipred_idc == 1 && slice_type == H264::SliceType::kB)) {
-    RTC_LOG(LS_ERROR) << "Streams with pred_weight_table unsupported.";
+    LOG(LS_ERROR) << "Streams with pred_weight_table unsupported.";
     return kUnsupportedStream;
   }
   // if ((weighted_pred_flag && (slice_type == P || slice_type == SP)) ||
@@ -246,8 +247,8 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
       }
     }
   }
-  if (pps_->entropy_coding_mode_flag && slice_type != H264::SliceType::kI &&
-      slice_type != H264::SliceType::kSi) {
+  if (pps_->entropy_coding_mode_flag &&
+      slice_type != H264::SliceType::kI && slice_type != H264::SliceType::kSi) {
     // cabac_init_idc: ue(v)
     RETURN_INV_ON_FAIL(slice_reader.ReadExponentialGolomb(&golomb_tmp));
   }
@@ -257,11 +258,11 @@ H264BitstreamParser::Result H264BitstreamParser::ParseNonParameterSetNalu(
       slice_reader.ReadSignedExponentialGolomb(&last_slice_qp_delta));
   if (abs(last_slice_qp_delta) > kMaxAbsQpDeltaValue) {
     // Something has gone wrong, and the parsed value is invalid.
-    RTC_LOG(LS_WARNING) << "Parsed QP value out of range.";
+    LOG(LS_WARNING) << "Parsed QP value out of range.";
     return kInvalidStream;
   }
 
-  last_slice_qp_delta_ = last_slice_qp_delta;
+  last_slice_qp_delta_ = rtc::Optional<int32_t>(last_slice_qp_delta);
   return kOk;
 }
 
@@ -272,14 +273,14 @@ void H264BitstreamParser::ParseSlice(const uint8_t* slice, size_t length) {
       sps_ = SpsParser::ParseSps(slice + H264::kNaluTypeSize,
                                  length - H264::kNaluTypeSize);
       if (!sps_)
-        RTC_LOG(LS_WARNING) << "Unable to parse SPS from H264 bitstream.";
+        LOG(LS_WARNING) << "Unable to parse SPS from H264 bitstream.";
       break;
     }
     case H264::NaluType::kPps: {
       pps_ = PpsParser::ParsePps(slice + H264::kNaluTypeSize,
                                  length - H264::kNaluTypeSize);
       if (!pps_)
-        RTC_LOG(LS_WARNING) << "Unable to parse PPS from H264 bitstream.";
+        LOG(LS_WARNING) << "Unable to parse PPS from H264 bitstream.";
       break;
     }
     case H264::NaluType::kAud:
@@ -288,7 +289,7 @@ void H264BitstreamParser::ParseSlice(const uint8_t* slice, size_t length) {
     default:
       Result res = ParseNonParameterSetNalu(slice, length, nalu_type);
       if (res != kOk)
-        RTC_LOG(LS_INFO) << "Failed to parse bitstream. Error: " << res;
+        LOG(LS_INFO) << "Failed to parse bitstream. Error: " << res;
       break;
   }
 }
@@ -306,7 +307,7 @@ bool H264BitstreamParser::GetLastSliceQp(int* qp) const {
     return false;
   const int parsed_qp = 26 + pps_->pic_init_qp_minus26 + *last_slice_qp_delta_;
   if (parsed_qp < kMinQpValue || parsed_qp > kMaxQpValue) {
-    RTC_LOG(LS_ERROR) << "Parsed invalid QP from bitstream.";
+    LOG(LS_ERROR) << "Parsed invalid QP from bitstream.";
     return false;
   }
   *qp = parsed_qp;

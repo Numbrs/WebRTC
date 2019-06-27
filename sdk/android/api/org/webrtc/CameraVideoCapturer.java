@@ -11,7 +11,6 @@
 package org.webrtc;
 
 import android.media.MediaRecorder;
-import android.support.annotation.Nullable;
 
 /**
  * Base interface for camera1 and camera2 implementations. Extends VideoCapturer with a
@@ -67,7 +66,6 @@ public interface CameraVideoCapturer extends VideoCapturer, CameraApi {
    * addMediaRecorderToCamera() or removeMediaRecorderFromCamera calls.
    * The callback may be called on an arbitrary thread.
    */
-  @Deprecated
   public interface MediaRecorderHandler {
     // Invoked on success.
     void onMediaRecorderSuccess();
@@ -81,20 +79,13 @@ public interface CameraVideoCapturer extends VideoCapturer, CameraApi {
    * Once MediaRecorder is added to camera pipeline camera switch is not allowed.
    * This function can be called from any thread.
    */
-  @Deprecated
-  default void addMediaRecorderToCamera(
-      MediaRecorder mediaRecorder, MediaRecorderHandler resultHandler) {
-    throw new UnsupportedOperationException("Deprecated and not implemented.");
-  }
+  void addMediaRecorderToCamera(MediaRecorder mediaRecorder, MediaRecorderHandler resultHandler);
 
   /**
    * Remove MediaRecorder from camera pipeline. This can only be called while the camera is running.
    * This function can be called from any thread.
    */
-  @Deprecated
-  default void removeMediaRecorderFromCamera(MediaRecorderHandler resultHandler) {
-    throw new UnsupportedOperationException("Deprecated and not implemented.");
-  }
+  void removeMediaRecorderFromCamera(MediaRecorderHandler resultHandler);
 
   /**
    * Helper class to log framerate and detect if the camera freezes. It will run periodic callbacks

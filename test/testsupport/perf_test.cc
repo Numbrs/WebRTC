@@ -8,156 +8,51 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "test/testsupport/perf_test.h"
-#include "rtc_base/checks.h"
-#include "rtc_base/critical_section.h"
+// A stripped-down version of Chromium's chrome/test/perf/perf_test.cc.
+// ResultsToString(), PrintResult(size_t value) and AppendResult(size_t value)
+// have been modified. The remainder are identical to the Chromium version.
 
-#include <stdio.h>
-#include <cmath>
-#include <fstream>
-#include <map>
+#include "test/testsupport/perf_test.h"
+
 #include <sstream>
-#include <vector>
+#include <stdio.h>
 
 namespace {
 
-template <typename Container>
-void OutputListToStream(std::ostream* ostream, const Container& values) {
-  const char* sep = "";
-  for (const auto& v : values) {
-    (*ostream) << sep << v;
-    sep = ",";
+std::string ResultsToString(const std::string& measurement,
+                            const std::string& modifier,
+                            const std::string& trace,
+                            const std::string& values,
+                            const std::string& prefix,
+                            const std::string& suffix,
+                            const std::string& units,
+                            bool important) {
+  // <*>RESULT <graph_name>: <trace_name>= <value> <units>
+  // <*>RESULT <graph_name>: <trace_name>= {<mean>, <std deviation>} <units>
+  // <*>RESULT <graph_name>: <trace_name>= [<value>,value,value,...,] <units>
+
+  // TODO(ajm): Use of a stream here may violate the style guide (depending on
+  // one's definition of "logging"). Consider adding StringPrintf-like
+  // functionality as in the original Chromium implementation.
+  std::ostringstream stream;
+  if (important) {
+    stream << "*";
   }
+  stream << "RESULT " << measurement << modifier << ": " << trace << "= "
+         << prefix << values << suffix << " " << units << std::endl;
+  return stream.str();
 }
 
-class PerfResultsLogger {
- public:
-  PerfResultsLogger() : crit_(), output_(stdout), graphs_() {}
-  void ClearResults() {
-    rtc::CritScope lock(&crit_);
-    graphs_.clear();
-  }
-  void SetOutput(FILE* output) {
-    rtc::CritScope lock(&crit_);
-    output_ = output;
-  }
-  void LogResult(const std::string& graph_name,
-                 const std::string& trace_name,
-                 const double value,
-                 const std::string& units,
-                 const bool important) {
-    RTC_CHECK(std::isfinite(value));
-
-    std::ostringstream value_stream;
-    value_stream.precision(8);
-    value_stream << value;
-    LogResultsImpl(graph_name, trace_name, value_stream.str(), units,
-                   important);
-
-    std::ostringstream json_stream;
-    json_stream << '"' << trace_name << R"(":{)";
-    json_stream << R"("type":"scalar",)";
-    json_stream << R"("value":)" << value << ',';
-    json_stream << R"("units":")" << units << R"("})";
-    rtc::CritScope lock(&crit_);
-    graphs_[graph_name].push_back(json_stream.str());
-  }
-  void LogResultMeanAndError(const std::string& graph_name,
-                             const std::string& trace_name,
-                             const double mean,
-                             const double error,
-                             const std::string& units,
-                             const bool important) {
-    RTC_CHECK(std::isfinite(mean));
-    RTC_CHECK(std::isfinite(error));
-
-    std::ostringstream value_stream;
-    value_stream.precision(8);
-    value_stream << '{' << mean << ',' << error << '}';
-    LogResultsImpl(graph_name, trace_name, value_stream.str(), units,
-                   important);
-
-    std::ostringstream json_stream;
-    json_stream << '"' << trace_name << R"(":{)";
-    json_stream << R"("type":"list_of_scalar_values",)";
-    json_stream << R"("values":[)" << mean << "],";
-    json_stream << R"("std":)" << error << ',';
-    json_stream << R"("units":")" << units << R"("})";
-    rtc::CritScope lock(&crit_);
-    graphs_[graph_name].push_back(json_stream.str());
-  }
-  void LogResultList(const std::string& graph_name,
-                     const std::string& trace_name,
-                     const rtc::ArrayView<const double> values,
-                     const std::string& units,
-                     const bool important) {
-    for (double v : values) {
-      RTC_CHECK(std::isfinite(v));
-    }
-
-    std::ostringstream value_stream;
-    value_stream.precision(8);
-    value_stream << '[';
-    OutputListToStream(&value_stream, values);
-    value_stream << ']';
-    LogResultsImpl(graph_name, trace_name, value_stream.str(), units,
-                   important);
-
-    std::ostringstream json_stream;
-    json_stream << '"' << trace_name << R"(":{)";
-    json_stream << R"("type":"list_of_scalar_values",)";
-    json_stream << R"("values":)" << value_stream.str() << ',';
-    json_stream << R"("units":")" << units << R"("})";
-    rtc::CritScope lock(&crit_);
-    graphs_[graph_name].push_back(json_stream.str());
-  }
-  std::string ToJSON() const;
-
- private:
-  void LogResultsImpl(const std::string& graph_name,
+void PrintResultsImpl(const std::string& measurement,
+                      const std::string& modifier,
                       const std::string& trace,
                       const std::string& values,
+                      const std::string& prefix,
+                      const std::string& suffix,
                       const std::string& units,
                       bool important) {
-    // <*>RESULT <graph_name>: <trace_name>= <value> <units>
-    // <*>RESULT <graph_name>: <trace_name>= {<mean>, <std deviation>} <units>
-    // <*>RESULT <graph_name>: <trace_name>= [<value>,value,value,...,] <units>
-    rtc::CritScope lock(&crit_);
-
-    if (important) {
-      fprintf(output_, "*");
-    }
-    fprintf(output_, "RESULT %s: %s= %s %s\n", graph_name.c_str(),
-            trace.c_str(), values.c_str(), units.c_str());
-  }
-
-  rtc::CriticalSection crit_;
-  FILE* output_ RTC_GUARDED_BY(&crit_);
-  std::map<std::string, std::vector<std::string>> graphs_
-      RTC_GUARDED_BY(&crit_);
-};
-
-std::string PerfResultsLogger::ToJSON() const {
-  std::ostringstream json_stream;
-  json_stream << R"({"format_version":"1.0",)";
-  json_stream << R"("charts":{)";
-  rtc::CritScope lock(&crit_);
-  for (auto graphs_it = graphs_.begin(); graphs_it != graphs_.end();
-       ++graphs_it) {
-    if (graphs_it != graphs_.begin())
-      json_stream << ',';
-    json_stream << '"' << graphs_it->first << "\":";
-    json_stream << '{';
-    OutputListToStream(&json_stream, graphs_it->second);
-    json_stream << '}';
-  }
-  json_stream << "}}";
-  return json_stream.str();
-}
-
-PerfResultsLogger& GetPerfResultsLogger() {
-  static PerfResultsLogger* const logger_ = new PerfResultsLogger();
-  return *logger_;
+  printf("%s", ResultsToString(measurement, modifier, trace, values,
+                               prefix, suffix, units, important).c_str());
 }
 
 }  // namespace
@@ -165,54 +60,117 @@ PerfResultsLogger& GetPerfResultsLogger() {
 namespace webrtc {
 namespace test {
 
-void ClearPerfResults() {
-  GetPerfResultsLogger().ClearResults();
+void PrintResult(const std::string& measurement,
+                 const std::string& modifier,
+                 const std::string& trace,
+                 size_t value,
+                 const std::string& units,
+                 bool important) {
+  std::ostringstream value_stream;
+  value_stream << value;
+  PrintResultsImpl(measurement, modifier, trace, value_stream.str(), "", "",
+                   units, important);
 }
 
-void SetPerfResultsOutput(FILE* output) {
-  GetPerfResultsLogger().SetOutput(output);
-}
-
-std::string GetPerfResultsJSON() {
-  return GetPerfResultsLogger().ToJSON();
-}
-
-void WritePerfResults(const std::string& output_path) {
-  std::string json_results = GetPerfResultsJSON();
-  std::fstream json_file(output_path, std::fstream::out);
-  json_file << json_results;
-  json_file.close();
+void AppendResult(std::string& output,
+                  const std::string& measurement,
+                  const std::string& modifier,
+                  const std::string& trace,
+                  size_t value,
+                  const std::string& units,
+                  bool important) {
+  std::ostringstream value_stream;
+  value_stream << value;
+  output += ResultsToString(measurement, modifier, trace,
+                            value_stream.str(),
+                            "", "", units, important);
 }
 
 void PrintResult(const std::string& measurement,
                  const std::string& modifier,
                  const std::string& trace,
-                 const double value,
+                 const std::string& value,
                  const std::string& units,
                  bool important) {
-  GetPerfResultsLogger().LogResult(measurement + modifier, trace, value, units,
-                                   important);
+  PrintResultsImpl(measurement, modifier, trace, value, "", "", units,
+                   important);
+}
+
+void AppendResult(std::string& output,
+                  const std::string& measurement,
+                  const std::string& modifier,
+                  const std::string& trace,
+                  const std::string& value,
+                  const std::string& units,
+                  bool important) {
+  output += ResultsToString(measurement, modifier, trace, value, "", "", units,
+                            important);
 }
 
 void PrintResultMeanAndError(const std::string& measurement,
                              const std::string& modifier,
                              const std::string& trace,
-                             const double mean,
-                             const double error,
+                             const std::string& mean_and_error,
                              const std::string& units,
                              bool important) {
-  GetPerfResultsLogger().LogResultMeanAndError(measurement + modifier, trace,
-                                               mean, error, units, important);
+  PrintResultsImpl(measurement, modifier, trace, mean_and_error,
+                   "{", "}", units, important);
+}
+
+void AppendResultMeanAndError(std::string& output,
+                              const std::string& measurement,
+                              const std::string& modifier,
+                              const std::string& trace,
+                              const std::string& mean_and_error,
+                              const std::string& units,
+                              bool important) {
+  output += ResultsToString(measurement, modifier, trace, mean_and_error,
+                            "{", "}", units, important);
 }
 
 void PrintResultList(const std::string& measurement,
                      const std::string& modifier,
                      const std::string& trace,
-                     const rtc::ArrayView<const double> values,
+                     const std::string& values,
                      const std::string& units,
                      bool important) {
-  GetPerfResultsLogger().LogResultList(measurement + modifier, trace, values,
-                                       units, important);
+  PrintResultsImpl(measurement, modifier, trace, values,
+                   "[", "]", units, important);
+}
+
+void AppendResultList(std::string& output,
+                      const std::string& measurement,
+                      const std::string& modifier,
+                      const std::string& trace,
+                      const std::string& values,
+                      const std::string& units,
+                      bool important) {
+  output += ResultsToString(measurement, modifier, trace, values,
+                            "[", "]", units, important);
+}
+
+void PrintSystemCommitCharge(const std::string& test_name,
+                             size_t charge,
+                             bool important) {
+  PrintSystemCommitCharge(stdout, test_name, charge, important);
+}
+
+void PrintSystemCommitCharge(FILE* target,
+                             const std::string& test_name,
+                             size_t charge,
+                             bool important) {
+  fprintf(target, "%s", SystemCommitChargeToString(test_name, charge,
+                                                   important).c_str());
+}
+
+std::string SystemCommitChargeToString(const std::string& test_name,
+                                       size_t charge,
+                                       bool important) {
+  std::string trace_name(test_name);
+  std::string output;
+  AppendResult(output, "commit_charge", "", "cc" + trace_name, charge, "kb",
+               important);
+  return output;
 }
 
 }  // namespace test

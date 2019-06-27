@@ -11,7 +11,6 @@
 #include <limits>
 #include <memory>
 
-#include "common_types.h"  // NOLINT(build/include)
 #include "modules/video_coding/utility/default_video_bitrate_allocator.h"
 #include "test/gtest.h"
 
@@ -31,6 +30,7 @@ class DefaultVideoBitrateAllocatorTest : public ::testing::Test {
     codec_.codecType = kVideoCodecVP8;
     codec_.minBitrate = kMinBitrateBps / 1000;
     codec_.maxBitrate = kMaxBitrateBps / 1000;
+    codec_.targetBitrate = (kMinBitrateBps + kMaxBitrateBps) / 2000;
     codec_.maxFramerate = kMaxFramerate;
     allocator_.reset(new DefaultVideoBitrateAllocator(codec_));
   }
@@ -41,22 +41,12 @@ class DefaultVideoBitrateAllocatorTest : public ::testing::Test {
 };
 
 TEST_F(DefaultVideoBitrateAllocatorTest, ZeroIsOff) {
-  VideoBitrateAllocation allocation =
-      allocator_->GetAllocation(0, kMaxFramerate);
-  EXPECT_EQ(0u, allocation.get_sum_bps());
-}
-
-TEST_F(DefaultVideoBitrateAllocatorTest, Inactive) {
-  codec_.active = false;
-  allocator_.reset(new DefaultVideoBitrateAllocator(codec_));
-  VideoBitrateAllocation allocation =
-      allocator_->GetAllocation(1, kMaxFramerate);
+  BitrateAllocation allocation = allocator_->GetAllocation(0, kMaxFramerate);
   EXPECT_EQ(0u, allocation.get_sum_bps());
 }
 
 TEST_F(DefaultVideoBitrateAllocatorTest, CapsToMin) {
-  VideoBitrateAllocation allocation =
-      allocator_->GetAllocation(1, kMaxFramerate);
+  BitrateAllocation allocation = allocator_->GetAllocation(1, kMaxFramerate);
   EXPECT_EQ(kMinBitrateBps, allocation.get_sum_bps());
 
   allocation = allocator_->GetAllocation(kMinBitrateBps - 1, kMaxFramerate);
@@ -67,7 +57,7 @@ TEST_F(DefaultVideoBitrateAllocatorTest, CapsToMin) {
 }
 
 TEST_F(DefaultVideoBitrateAllocatorTest, CapsToMax) {
-  VideoBitrateAllocation allocation =
+  BitrateAllocation allocation =
       allocator_->GetAllocation(kMaxBitrateBps, kMaxFramerate);
   EXPECT_EQ(kMaxBitrateBps, allocation.get_sum_bps());
 
@@ -80,7 +70,7 @@ TEST_F(DefaultVideoBitrateAllocatorTest, CapsToMax) {
 }
 
 TEST_F(DefaultVideoBitrateAllocatorTest, GoodInBetween) {
-  VideoBitrateAllocation allocation =
+  BitrateAllocation allocation =
       allocator_->GetAllocation(kMinBitrateBps + 1, kMaxFramerate);
   EXPECT_EQ(kMinBitrateBps + 1, allocation.get_sum_bps());
 

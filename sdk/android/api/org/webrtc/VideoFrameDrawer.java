@@ -13,7 +13,6 @@ package org.webrtc;
 import android.graphics.Matrix;
 import android.graphics.Point;
 import android.opengl.GLES20;
-import android.support.annotation.Nullable;
 import java.nio.ByteBuffer;
 
 /**
@@ -22,14 +21,13 @@ import java.nio.ByteBuffer;
  * taken into account. You can supply an additional render matrix for custom transformations.
  */
 public class VideoFrameDrawer {
-  public static final String TAG = "VideoFrameDrawer";
   /**
    * Draws a VideoFrame.TextureBuffer. Calls either drawer.drawOes or drawer.drawRgb
    * depending on the type of the buffer. You can supply an additional render matrix. This is
    * used multiplied together with the transformation matrix of the frame. (M = renderMatrix *
    * transformationMatrix)
    */
-  public static void drawTexture(RendererCommon.GlDrawer drawer, VideoFrame.TextureBuffer buffer,
+  static void drawTexture(RendererCommon.GlDrawer drawer, VideoFrame.TextureBuffer buffer,
       Matrix renderMatrix, int frameWidth, int frameHeight, int viewportX, int viewportY,
       int viewportWidth, int viewportHeight) {
     Matrix finalMatrix = new Matrix(buffer.getTransformMatrix());
@@ -57,15 +55,14 @@ public class VideoFrameDrawer {
     // Intermediate copy buffer for uploading yuv frames that are not packed, i.e. stride > width.
     // TODO(magjed): Investigate when GL_UNPACK_ROW_LENGTH is available, or make a custom shader
     // that handles stride and compare performance with intermediate copy.
-    @Nullable private ByteBuffer copyBuffer;
-    @Nullable private int[] yuvTextures;
+    private ByteBuffer copyBuffer;
+    private int[] yuvTextures;
 
     /**
      * Upload |planes| into OpenGL textures, taking stride into consideration.
      *
      * @return Array of three texture indices corresponding to Y-, U-, and V-plane respectively.
      */
-    @Nullable
     public int[] uploadYuvData(int width, int height, int[] strides, ByteBuffer[] planes) {
       final int[] planeWidths = new int[] {width, width / 2, width / 2};
       final int[] planeHeights = new int[] {height, height / 2, height / 2};
@@ -98,8 +95,8 @@ public class VideoFrameDrawer {
           // Input is packed already.
           packedByteBuffer = planes[i];
         } else {
-          YuvHelper.copyPlane(
-              planes[i], strides[i], copyBuffer, planeWidths[i], planeWidths[i], planeHeights[i]);
+          VideoRenderer.nativeCopyPlane(
+              planes[i], planeWidths[i], planeHeights[i], strides[i], copyBuffer, planeWidths[i]);
           packedByteBuffer = copyBuffer;
         }
         GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, planeWidths[i],
@@ -108,14 +105,12 @@ public class VideoFrameDrawer {
       return yuvTextures;
     }
 
-    @Nullable
     public int[] uploadFromBuffer(VideoFrame.I420Buffer buffer) {
       int[] strides = {buffer.getStrideY(), buffer.getStrideU(), buffer.getStrideV()};
       ByteBuffer[] planes = {buffer.getDataY(), buffer.getDataU(), buffer.getDataV()};
       return uploadYuvData(buffer.getWidth(), buffer.getHeight(), strides, planes);
     }
 
-    @Nullable
     public int[] getYuvTextures() {
       return yuvTextures;
     }
@@ -149,7 +144,7 @@ public class VideoFrameDrawer {
   // |renderWidth| and |renderHeight| to avoid allocations since this function is called for every
   // frame.
   private void calculateTransformedRenderSize(
-      int frameWidth, int frameHeight, @Nullable Matrix renderMatrix) {
+      int frameWidth, int frameHeight, Matrix renderMatrix) {
     if (renderMatrix == null) {
       renderWidth = frameWidth;
       renderHeight = frameHeight;
@@ -172,7 +167,7 @@ public class VideoFrameDrawer {
   private final YuvUploader yuvUploader = new YuvUploader();
   // This variable will only be used for checking reference equality and is used for caching I420
   // textures.
-  @Nullable private VideoFrame lastI420Frame;
+  private VideoFrame lastI420Frame;
   private final Matrix renderMatrix = new Matrix();
 
   public void drawFrame(VideoFrame frame, RendererCommon.GlDrawer drawer) {
@@ -186,14 +181,10 @@ public class VideoFrameDrawer {
   }
 
   public void drawFrame(VideoFrame frame, RendererCommon.GlDrawer drawer,
-      @Nullable Matrix additionalRenderMatrix, int viewportX, int viewportY, int viewportWidth,
+      Matrix additionalRenderMatrix, int viewportX, int viewportY, int viewportWidth,
       int viewportHeight) {
     final int width = frame.getRotatedWidth();
     final int height = frame.getRotatedHeight();
-    if (width <= 0 || height <= 0) {
-      Logging.w(TAG, "Illegal frame size: " + height + "x" + width);
-      return;
-    }
 
     calculateTransformedRenderSize(width, height, additionalRenderMatrix);
 
@@ -227,12 +218,6 @@ public class VideoFrameDrawer {
           RendererCommon.convertMatrixFromAndroidGraphicsMatrix(renderMatrix), renderWidth,
           renderHeight, viewportX, viewportY, viewportWidth, viewportHeight);
     }
-  }
-
-  public VideoFrame.Buffer prepareBufferForViewportSize(
-      VideoFrame.Buffer buffer, int width, int height) {
-    buffer.retain();
-    return buffer;
   }
 
   public void release() {

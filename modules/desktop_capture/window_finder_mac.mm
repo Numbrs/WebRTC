@@ -12,40 +12,32 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 
-#include <utility>
-
-#include "absl/memory/memory.h"
-#include "modules/desktop_capture/mac/desktop_configuration.h"
-#include "modules/desktop_capture/mac/desktop_configuration_monitor.h"
 #include "modules/desktop_capture/mac/window_list_utils.h"
+#include "rtc_base/ptr_util.h"
 
 namespace webrtc {
 
-WindowFinderMac::WindowFinderMac(
-    rtc::scoped_refptr<DesktopConfigurationMonitor> configuration_monitor)
-    : configuration_monitor_(std::move(configuration_monitor)) {}
+WindowFinderMac::WindowFinderMac() = default;
 WindowFinderMac::~WindowFinderMac() = default;
 
 WindowId WindowFinderMac::GetWindowUnderPoint(DesktopVector point) {
   WindowId id = kNullWindowId;
-  GetWindowList(
-      [&id, point](CFDictionaryRef window) {
-        DesktopRect bounds;
-        bounds = GetWindowBounds(window);
-        if (bounds.Contains(point)) {
-          id = GetWindowId(window);
-          return false;
-        }
-        return true;
-      },
-      true);
+  GetWindowList([&id, point](CFDictionaryRef window) {
+                  DesktopRect bounds = GetWindowBounds(window);
+                  if (bounds.Contains(point)) {
+                    id = GetWindowId(window);
+                    return false;
+                  }
+                  return true;
+                },
+                true);
   return id;
 }
 
 // static
 std::unique_ptr<WindowFinder> WindowFinder::Create(
     const WindowFinder::Options& options) {
-  return absl::make_unique<WindowFinderMac>(options.configuration_monitor);
+  return rtc::MakeUnique<WindowFinderMac>();
 }
 
 }  // namespace webrtc

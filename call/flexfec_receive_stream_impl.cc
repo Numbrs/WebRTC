@@ -10,14 +10,8 @@
 
 #include "call/flexfec_receive_stream_impl.h"
 
-#include <stddef.h>
-#include <cstdint>
 #include <string>
-#include <vector>
 
-#include "api/array_view.h"
-#include "api/call/transport.h"
-#include "api/rtp_parameters.h"
 #include "call/rtp_stream_receiver_controller_interface.h"
 #include "modules/rtp_rtcp/include/flexfec_receiver.h"
 #include "modules/rtp_rtcp/include/receive_statistics.h"
@@ -27,22 +21,19 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/location.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/strings/string_builder.h"
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 
 std::string FlexfecReceiveStream::Stats::ToString(int64_t time_ms) const {
-  char buf[1024];
-  rtc::SimpleStringBuilder ss(buf);
+  std::stringstream ss;
   ss << "FlexfecReceiveStream stats: " << time_ms
      << ", {flexfec_bitrate_bps: " << flexfec_bitrate_bps << "}";
   return ss.str();
 }
 
 std::string FlexfecReceiveStream::Config::ToString() const {
-  char buf[1024];
-  rtc::SimpleStringBuilder ss(buf);
+  std::stringstream ss;
   ss << "{payload_type: " << payload_type;
   ss << ", remote_ssrc: " << remote_ssrc;
   ss << ", local_ssrc: " << local_ssrc;
@@ -80,32 +71,28 @@ namespace {
 
 // TODO(brandtr): Update this function when we support multistream protection.
 std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
-    Clock* clock,
     const FlexfecReceiveStream::Config& config,
     RecoveredPacketReceiver* recovered_packet_receiver) {
   if (config.payload_type < 0) {
-    RTC_LOG(LS_WARNING)
-        << "Invalid FlexFEC payload type given. "
-        << "This FlexfecReceiveStream will therefore be useless.";
+    LOG(LS_WARNING) << "Invalid FlexFEC payload type given. "
+                    << "This FlexfecReceiveStream will therefore be useless.";
     return nullptr;
   }
   RTC_DCHECK_GE(config.payload_type, 0);
   RTC_DCHECK_LE(config.payload_type, 127);
   if (config.remote_ssrc == 0) {
-    RTC_LOG(LS_WARNING)
-        << "Invalid FlexFEC SSRC given. "
-        << "This FlexfecReceiveStream will therefore be useless.";
+    LOG(LS_WARNING) << "Invalid FlexFEC SSRC given. "
+                    << "This FlexfecReceiveStream will therefore be useless.";
     return nullptr;
   }
   if (config.protected_media_ssrcs.empty()) {
-    RTC_LOG(LS_WARNING)
-        << "No protected media SSRC supplied. "
-        << "This FlexfecReceiveStream will therefore be useless.";
+    LOG(LS_WARNING) << "No protected media SSRC supplied. "
+                    << "This FlexfecReceiveStream will therefore be useless.";
     return nullptr;
   }
 
   if (config.protected_media_ssrcs.size() > 1) {
-    RTC_LOG(LS_WARNING)
+    LOG(LS_WARNING)
         << "The supplied FlexfecConfig contained multiple protected "
            "media streams, but our implementation currently only "
            "supports protecting a single media stream. "
@@ -113,20 +100,19 @@ std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
     return nullptr;
   }
   RTC_DCHECK_EQ(1U, config.protected_media_ssrcs.size());
-  return std::unique_ptr<FlexfecReceiver>(new FlexfecReceiver(
-      clock, config.remote_ssrc, config.protected_media_ssrcs[0],
-      recovered_packet_receiver));
+  return std::unique_ptr<FlexfecReceiver>(
+      new FlexfecReceiver(config.remote_ssrc, config.protected_media_ssrcs[0],
+                          recovered_packet_receiver));
 }
 
 std::unique_ptr<RtpRtcp> CreateRtpRtcpModule(
-    Clock* clock,
     ReceiveStatistics* receive_statistics,
     Transport* rtcp_send_transport,
     RtcpRttStats* rtt_stats) {
   RtpRtcp::Configuration configuration;
   configuration.audio = false;
   configuration.receiver_only = true;
-  configuration.clock = clock;
+  configuration.clock = Clock::GetRealTimeClock();
   configuration.receive_statistics = receive_statistics;
   configuration.outgoing_transport = rtcp_send_transport;
   configuration.rtt_stats = rtt_stats;
@@ -137,23 +123,20 @@ std::unique_ptr<RtpRtcp> CreateRtpRtcpModule(
 }  // namespace
 
 FlexfecReceiveStreamImpl::FlexfecReceiveStreamImpl(
-    Clock* clock,
     RtpStreamReceiverControllerInterface* receiver_controller,
     const Config& config,
     RecoveredPacketReceiver* recovered_packet_receiver,
     RtcpRttStats* rtt_stats,
     ProcessThread* process_thread)
     : config_(config),
-      receiver_(MaybeCreateFlexfecReceiver(clock,
-                                           config_,
-                                           recovered_packet_receiver)),
-      rtp_receive_statistics_(ReceiveStatistics::Create(clock)),
-      rtp_rtcp_(CreateRtpRtcpModule(clock,
-                                    rtp_receive_statistics_.get(),
+      receiver_(MaybeCreateFlexfecReceiver(config_, recovered_packet_receiver)),
+      rtp_receive_statistics_(
+          ReceiveStatistics::Create(Clock::GetRealTimeClock())),
+      rtp_rtcp_(CreateRtpRtcpModule(rtp_receive_statistics_.get(),
                                     config_.rtcp_send_transport,
                                     rtt_stats)),
       process_thread_(process_thread) {
-  RTC_LOG(LS_INFO) << "FlexfecReceiveStreamImpl: " << config_.ToString();
+  LOG(LS_INFO) << "FlexfecReceiveStreamImpl: " << config_.ToString();
 
   // RTCP reporting.
   rtp_rtcp_->SetRTCPStatus(config_.rtcp_mode);
@@ -176,7 +159,7 @@ FlexfecReceiveStreamImpl::FlexfecReceiveStreamImpl(
 }
 
 FlexfecReceiveStreamImpl::~FlexfecReceiveStreamImpl() {
-  RTC_LOG(LS_INFO) << "~FlexfecReceiveStreamImpl: " << config_.ToString();
+  LOG(LS_INFO) << "~FlexfecReceiveStreamImpl: " << config_.ToString();
   process_thread_->DeRegisterModule(rtp_rtcp_.get());
 }
 
@@ -188,7 +171,12 @@ void FlexfecReceiveStreamImpl::OnRtpPacket(const RtpPacketReceived& packet) {
 
   // Do not report media packets in the RTCP RRs generated by |rtp_rtcp_|.
   if (packet.Ssrc() == config_.remote_ssrc) {
-    rtp_receive_statistics_->OnRtpPacket(packet);
+    RTPHeader header;
+    packet.GetHeader(&header);
+    // FlexFEC packets are never retransmitted.
+    const bool kNotRetransmitted = false;
+    rtp_receive_statistics_->IncomingPacket(header, packet.size(),
+                                            kNotRetransmitted);
   }
 }
 

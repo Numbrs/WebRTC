@@ -32,7 +32,8 @@ class StatsCounterObserverImpl : public StatsCounterObserver {
 
 class StatsCounterTest : public ::testing::Test {
  protected:
-  StatsCounterTest() : clock_(1234) {}
+  StatsCounterTest()
+      : clock_(1234) {}
 
   void AddSampleAndAdvance(int sample, int interval_ms, AvgCounter* counter) {
     counter->Add(sample);

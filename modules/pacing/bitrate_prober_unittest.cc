@@ -8,6 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include <limits>
+
 #include "modules/pacing/bitrate_prober.h"
 #include "test/gtest.h"
 
@@ -25,8 +27,8 @@ TEST(BitrateProberTest, VerifyStatesAndTimeBetweenProbes) {
   const int kProbeSize = 1000;
   const int kMinProbeDurationMs = 15;
 
-  prober.CreateProbeCluster(kTestBitrate1, now_ms, 0);
-  prober.CreateProbeCluster(kTestBitrate2, now_ms, 1);
+  prober.CreateProbeCluster(kTestBitrate1, now_ms);
+  prober.CreateProbeCluster(kTestBitrate2, now_ms);
   EXPECT_FALSE(prober.IsProbing());
 
   prober.OnIncomingPacket(kProbeSize);
@@ -47,7 +49,7 @@ TEST(BitrateProberTest, VerifyStatesAndTimeBetweenProbes) {
   // Verify that the actual bitrate is withing 10% of the target.
   double bitrate = kProbeSize * (kClusterSize - 1) * 8 * 1000.0 / now_ms;
   EXPECT_GT(bitrate, kTestBitrate1 * 0.9);
-  EXPECT_LT(bitrate, kTestBitrate1 * 1.1);
+  EXPECT_LT(bitrate,  kTestBitrate1 * 1.1);
 
   now_ms += prober.TimeUntilNextProbe(now_ms);
   int64_t probe2_started = now_ms;
@@ -64,7 +66,7 @@ TEST(BitrateProberTest, VerifyStatesAndTimeBetweenProbes) {
   EXPECT_GE(duration, kMinProbeDurationMs);
   bitrate = kProbeSize * (kClusterSize - 1) * 8 * 1000.0 / duration;
   EXPECT_GT(bitrate, kTestBitrate2 * 0.9);
-  EXPECT_LT(bitrate, kTestBitrate2 * 1.1);
+  EXPECT_LT(bitrate,  kTestBitrate2 * 1.1);
 
   EXPECT_EQ(-1, prober.TimeUntilNextProbe(now_ms));
   EXPECT_FALSE(prober.IsProbing());
@@ -76,7 +78,7 @@ TEST(BitrateProberTest, DoesntProbeWithoutRecentPackets) {
   int64_t now_ms = 0;
   EXPECT_EQ(-1, prober.TimeUntilNextProbe(now_ms));
 
-  prober.CreateProbeCluster(900000, now_ms, 0);
+  prober.CreateProbeCluster(900000, now_ms);
   EXPECT_FALSE(prober.IsProbing());
 
   prober.OnIncomingPacket(1000);
@@ -86,10 +88,14 @@ TEST(BitrateProberTest, DoesntProbeWithoutRecentPackets) {
   // Let time pass, no large enough packets put into prober.
   now_ms += 6000;
   EXPECT_EQ(-1, prober.TimeUntilNextProbe(now_ms));
-  // Check that legacy behaviour where prober is reset in TimeUntilNextProbe is
-  // no longer there. Probes are no longer retried if they are timed out.
+  // Insert a large-enough packet after downtime while probing should reset to
+  // perform a new probe since the requested one didn't finish.
   prober.OnIncomingPacket(1000);
-  EXPECT_EQ(-1, prober.TimeUntilNextProbe(now_ms));
+  EXPECT_EQ(0, prober.TimeUntilNextProbe(now_ms));
+  prober.ProbeSent(now_ms, 1000);
+  // Next packet should be part of new probe and be sent with non-zero delay.
+  prober.OnIncomingPacket(1000);
+  EXPECT_GT(prober.TimeUntilNextProbe(now_ms), 0);
 }
 
 TEST(BitrateProberTest, DoesntInitializeProbingForSmallPackets) {
@@ -105,7 +111,7 @@ TEST(BitrateProberTest, VerifyProbeSizeOnHighBitrate) {
   BitrateProber prober;
   constexpr unsigned kHighBitrateBps = 10000000;  // 10 Mbps
 
-  prober.CreateProbeCluster(kHighBitrateBps, 0, /*cluster_id=*/0);
+  prober.CreateProbeCluster(kHighBitrateBps, 0);
   // Probe size should ensure a minimum of 1 ms interval.
   EXPECT_GT(prober.RecommendedMinProbeSize(), kHighBitrateBps / 8000);
 }
@@ -117,7 +123,7 @@ TEST(BitrateProberTest, MinumumNumberOfProbingPackets) {
   constexpr int kBitrateBps = 100000;  // 100 kbps
   constexpr int kPacketSizeBytes = 1000;
 
-  prober.CreateProbeCluster(kBitrateBps, 0, 0);
+  prober.CreateProbeCluster(kBitrateBps, 0);
   prober.OnIncomingPacket(kPacketSizeBytes);
   for (int i = 0; i < 5; ++i) {
     EXPECT_TRUE(prober.IsProbing());
@@ -133,25 +139,7 @@ TEST(BitrateProberTest, ScaleBytesUsedForProbing) {
   constexpr int kPacketSizeBytes = 1000;
   constexpr int kExpectedBytesSent = kBitrateBps * 15 / 8000;
 
-  prober.CreateProbeCluster(kBitrateBps, 0, /*cluster_id=*/0);
-  prober.OnIncomingPacket(kPacketSizeBytes);
-  int bytes_sent = 0;
-  while (bytes_sent < kExpectedBytesSent) {
-    ASSERT_TRUE(prober.IsProbing());
-    prober.ProbeSent(0, kPacketSizeBytes);
-    bytes_sent += kPacketSizeBytes;
-  }
-
-  EXPECT_FALSE(prober.IsProbing());
-}
-
-TEST(BitrateProberTest, HighBitrateProbing) {
-  BitrateProber prober;
-  constexpr int kBitrateBps = 1000000000;  // 1 Gbps.
-  constexpr int kPacketSizeBytes = 1000;
-  constexpr int kExpectedBytesSent = (kBitrateBps / 8000) * 15;
-
-  prober.CreateProbeCluster(kBitrateBps, 0, 0);
+  prober.CreateProbeCluster(kBitrateBps, 0);
   prober.OnIncomingPacket(kPacketSizeBytes);
   int bytes_sent = 0;
   while (bytes_sent < kExpectedBytesSent) {
@@ -172,15 +160,15 @@ TEST(BitrateProberTest, ProbeClusterTimeout) {
   constexpr int64_t kTimeoutMs = 5000;
 
   int64_t now_ms = 0;
-  prober.CreateProbeCluster(kBitrateBps, now_ms, /*cluster_id=*/0);
+  prober.CreateProbeCluster(kBitrateBps, now_ms);
   prober.OnIncomingPacket(kSmallPacketSize);
   EXPECT_FALSE(prober.IsProbing());
   now_ms += kTimeoutMs;
-  prober.CreateProbeCluster(kBitrateBps / 10, now_ms, /*cluster_id=*/1);
+  prober.CreateProbeCluster(kBitrateBps / 10, now_ms);
   prober.OnIncomingPacket(kSmallPacketSize);
   EXPECT_FALSE(prober.IsProbing());
   now_ms += 1;
-  prober.CreateProbeCluster(kBitrateBps / 10, now_ms, /*cluster_id=*/2);
+  prober.CreateProbeCluster(kBitrateBps / 10, now_ms);
   prober.OnIncomingPacket(kSmallPacketSize);
   EXPECT_TRUE(prober.IsProbing());
   int bytes_sent = 0;

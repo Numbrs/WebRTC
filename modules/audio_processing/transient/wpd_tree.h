@@ -11,7 +11,6 @@
 #ifndef MODULES_AUDIO_PROCESSING_TRANSIENT_WPD_TREE_H_
 #define MODULES_AUDIO_PROCESSING_TRANSIENT_WPD_TREE_H_
 
-#include <stddef.h>
 #include <memory>
 
 #include "modules/audio_processing/transient/wpd_node.h"
@@ -48,7 +47,9 @@ class WPDTree {
   ~WPDTree();
 
   // Returns the number of nodes at any given level.
-  static int NumberOfNodesAtLevel(int level) { return 1 << level; }
+  static int NumberOfNodesAtLevel(int level) {
+    return 1 << level;
+  }
 
   // Returns a pointer to the node at the given level and index(of that level).
   // Level goes from 0 to levels().

@@ -12,7 +12,7 @@
 
 #include <algorithm>
 
-#include "rtc_base/checks.h"
+#include "modules/video_coding/sequence_number_util.h"
 
 namespace webrtc {
 namespace video_coding {

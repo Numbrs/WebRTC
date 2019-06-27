@@ -12,28 +12,29 @@
 
 #include <string.h>
 
+#include "rtc_base/file.h"
 #include "rtc_base/flags.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/system/file_wrapper.h"
-#include "test/testsupport/file_utils.h"
+#include "rtc_base/pathutils.h"
+#include "test/testsupport/fileutils.h"
 
 namespace {
 const std::string& DefaultArtifactPath() {
   static const std::string path = webrtc::test::OutputPath();
   return path;
 }
-}  // namespace
+}
 
-WEBRTC_DEFINE_string(test_artifacts_dir,
-                     DefaultArtifactPath().c_str(),
-                     "The output folder where test output should be saved.");
+DEFINE_string(test_artifacts_dir,
+              DefaultArtifactPath().c_str(),
+              "The output folder where test output should be saved.");
 
 namespace webrtc {
 namespace test {
 
 bool GetTestArtifactsDir(std::string* out_dir) {
   if (strlen(FLAG_test_artifacts_dir) == 0) {
-    RTC_LOG(LS_WARNING) << "No test_out_dir defined.";
+    LOG(LS_WARNING) << "No test_out_dir defined.";
     return false;
   }
   *out_dir = FLAG_test_artifacts_dir;
@@ -44,19 +45,19 @@ bool WriteToTestArtifactsDir(const char* filename,
                              const uint8_t* buffer,
                              size_t length) {
   if (strlen(FLAG_test_artifacts_dir) == 0) {
-    RTC_LOG(LS_WARNING) << "No test_out_dir defined.";
+    LOG(LS_WARNING) << "No test_out_dir defined.";
     return false;
   }
 
   if (filename == nullptr || strlen(filename) == 0) {
-    RTC_LOG(LS_WARNING) << "filename must be provided.";
+    LOG(LS_WARNING) << "filename must be provided.";
     return false;
   }
 
-  FileWrapper output = FileWrapper::OpenWriteOnly(
-      JoinFilename(FLAG_test_artifacts_dir, filename));
+  rtc::File output =
+      rtc::File::Create(rtc::Pathname(FLAG_test_artifacts_dir, filename));
 
-  return output.is_open() && output.Write(buffer, length);
+  return output.IsOpen() && output.Write(buffer, length) == length;
 }
 
 bool WriteToTestArtifactsDir(const char* filename, const std::string& content) {

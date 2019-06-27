@@ -16,8 +16,8 @@
 
 ******************************************************************/
 
-#include "modules/audio_coding/codecs/ilbc/defines.h"
-#include "modules/audio_coding/codecs/ilbc/constants.h"
+#include "defines.h"
+#include "constants.h"
 
 /*----------------------------------------------------------------*
  *  quantizer for the gain in the gain-shape coding of residual

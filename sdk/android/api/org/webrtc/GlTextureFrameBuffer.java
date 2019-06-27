@@ -15,13 +15,13 @@ import android.opengl.GLES20;
 /**
  * Helper class for handling OpenGL framebuffer with only color attachment and no depth or stencil
  * buffer. Intended for simple tasks such as texture copy, texture downscaling, and texture color
- * conversion. This class is not thread safe and must be used by a thread with an active GL context.
+ * conversion.
  */
 // TODO(magjed): Add unittests for this class.
 public class GlTextureFrameBuffer {
+  private final int frameBufferId;
+  private final int textureId;
   private final int pixelFormat;
-  private int frameBufferId;
-  private int textureId;
   private int width;
   private int height;
 
@@ -39,8 +39,16 @@ public class GlTextureFrameBuffer {
       default:
         throw new IllegalArgumentException("Invalid pixel format: " + pixelFormat);
     }
+
+    // Create texture.
+    textureId = GlUtil.generateTexture(GLES20.GL_TEXTURE_2D);
     this.width = 0;
     this.height = 0;
+
+    // Create framebuffer object.
+    final int frameBuffers[] = new int[1];
+    GLES20.glGenFramebuffers(1, frameBuffers, 0);
+    frameBufferId = frameBuffers[0];
   }
 
   /**
@@ -49,7 +57,7 @@ public class GlTextureFrameBuffer {
    * least once before using the framebuffer. May be called multiple times to change size.
    */
   public void setSize(int width, int height) {
-    if (width <= 0 || height <= 0) {
+    if (width == 0 || height == 0) {
       throw new IllegalArgumentException("Invalid size: " + width + "x" + height);
     }
     if (width == this.width && height == this.height) {
@@ -57,15 +65,6 @@ public class GlTextureFrameBuffer {
     }
     this.width = width;
     this.height = height;
-    // Lazy allocation the first time setSize() is called.
-    if (textureId == 0) {
-      textureId = GlUtil.generateTexture(GLES20.GL_TEXTURE_2D);
-    }
-    if (frameBufferId == 0) {
-      final int frameBuffers[] = new int[1];
-      GLES20.glGenFramebuffers(1, frameBuffers, 0);
-      frameBufferId = frameBuffers[0];
-    }
 
     // Allocate texture.
     GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
@@ -97,12 +96,10 @@ public class GlTextureFrameBuffer {
     return height;
   }
 
-  /** Gets the OpenGL frame buffer id. This value is only valid after setSize() has been called. */
   public int getFrameBufferId() {
     return frameBufferId;
   }
 
-  /** Gets the OpenGL texture id. This value is only valid after setSize() has been called. */
   public int getTextureId() {
     return textureId;
   }
@@ -113,9 +110,7 @@ public class GlTextureFrameBuffer {
    */
   public void release() {
     GLES20.glDeleteTextures(1, new int[] {textureId}, 0);
-    textureId = 0;
     GLES20.glDeleteFramebuffers(1, new int[] {frameBufferId}, 0);
-    frameBufferId = 0;
     width = 0;
     height = 0;
   }

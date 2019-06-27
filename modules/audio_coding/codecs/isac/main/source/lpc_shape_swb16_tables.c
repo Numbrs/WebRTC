@@ -16,8 +16,9 @@
  *
  */
 
-#include "modules/audio_coding/codecs/isac/main/source/lpc_shape_swb16_tables.h"
-#include "modules/audio_coding/codecs/isac/main/source/settings.h"
+#include "lpc_shape_swb16_tables.h"
+#include "settings.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 /*
 * Mean value of LAR

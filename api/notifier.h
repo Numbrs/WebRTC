@@ -13,7 +13,7 @@
 
 #include <list>
 
-#include "api/media_stream_interface.h"
+#include "api/mediastreaminterface.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -23,7 +23,8 @@ namespace webrtc {
 template <class T>
 class Notifier : public T {
  public:
-  Notifier() {}
+  Notifier() {
+  }
 
   virtual void RegisterObserver(ObserverInterface* observer) {
     RTC_DCHECK(observer != nullptr);

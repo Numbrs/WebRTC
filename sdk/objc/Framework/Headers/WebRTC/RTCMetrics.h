@@ -8,4 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#import "api/peerconnection/RTCMetrics.h"
+#import <Foundation/Foundation.h>
+
+#import <WebRTC/RTCMacros.h>
+#import <WebRTC/RTCMetricsSampleInfo.h>
+
+/**
+ * Enables gathering of metrics (which can be fetched with
+ * RTCGetAndResetMetrics). Must be called before any other call into WebRTC.
+ */
+RTC_EXTERN void RTCEnableMetrics();
+
+/** Gets and clears native histograms. */
+RTC_EXTERN NSArray<RTCMetricsSampleInfo *> *RTCGetAndResetMetrics();

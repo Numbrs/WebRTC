@@ -12,16 +12,12 @@
 
 #include <ApplicationServices/ApplicationServices.h>
 
-#include <algorithm>
-#include <cmath>
-#include <iterator>
-
 #include "rtc_base/checks.h"
-#include "rtc_base/mac_utils.h"
+#include "rtc_base/macutils.h"
 
-static_assert(static_cast<webrtc::WindowId>(kCGNullWindowID) ==
-                  webrtc::kNullWindowId,
-              "kNullWindowId needs to equal to kCGNullWindowID.");
+static_assert(
+    static_cast<webrtc::WindowId>(kCGNullWindowID) == webrtc::kNullWindowId,
+    "kNullWindowId needs to equal to kCGNullWindowID.");
 
 namespace webrtc {
 
@@ -69,8 +65,8 @@ bool GetWindowList(rtc::FunctionView<bool(CFDictionaryRef)> on_window,
 
   // Only get on screen, non-desktop windows.
   // According to
-  // https://developer.apple.com/documentation/coregraphics/cgwindowlistoption/1454105-optiononscreenonly
-  // , when kCGWindowListOptionOnScreenOnly is used, the order of windows are in
+  // https://developer.apple.com/documentation/coregraphics/cgwindowlistoption/1454105-optiononscreenonly ,
+  // when kCGWindowListOptionOnScreenOnly is used, the order of windows are in
   // decreasing z-order.
   CFArrayRef window_array = CGWindowListCopyWindowInfo(
       kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
@@ -112,7 +108,10 @@ bool GetWindowList(rtc::FunctionView<bool(CFDictionaryRef)> on_window,
       continue;
     }
 
-    // Skip windows with layer!=0 (menu, dock).
+    // Skip windows with layer=0 (menu, dock).
+    // TODO(zijiehe): The windows with layer != 0 are skipped, is this a bug in
+    // code (not likely) or a bug in comments? What's the meaning of window
+    // layer number in the first place.
     int layer;
     if (!CFNumberGetValue(window_layer, kCFNumberIntType, &layer)) {
       continue;
@@ -143,7 +142,7 @@ bool GetWindowList(DesktopCapturer::SourceList* windows,
         WindowId id = GetWindowId(window);
         std::string title = GetWindowTitle(window);
         if (id != kNullWindowId && !title.empty()) {
-          windows->push_back(DesktopCapturer::Source{id, title});
+          windows->push_back(DesktopCapturer::Source{ id, title });
         }
         return true;
       },
@@ -151,8 +150,9 @@ bool GetWindowList(DesktopCapturer::SourceList* windows,
 }
 
 // Returns true if the window is occupying a full screen.
-bool IsWindowFullScreen(const MacDesktopConfiguration& desktop_config,
-                        CFDictionaryRef window) {
+bool IsWindowFullScreen(
+    const MacDesktopConfiguration& desktop_config,
+    CFDictionaryRef window) {
   bool fullscreen = false;
   CFDictionaryRef bounds_ref = reinterpret_cast<CFDictionaryRef>(
       CFDictionaryGetValue(window, kCGWindowBounds));
@@ -163,9 +163,10 @@ bool IsWindowFullScreen(const MacDesktopConfiguration& desktop_config,
     for (MacDisplayConfigurations::const_iterator it =
              desktop_config.displays.begin();
          it != desktop_config.displays.end(); it++) {
-      if (it->bounds.equals(
-              DesktopRect::MakeXYWH(bounds.origin.x, bounds.origin.y,
-                                    bounds.size.width, bounds.size.height))) {
+      if (it->bounds.equals(DesktopRect::MakeXYWH(bounds.origin.x,
+                                                  bounds.origin.y,
+                                                  bounds.size.width,
+                                                  bounds.size.height))) {
         fullscreen = true;
         break;
       }
@@ -183,9 +184,10 @@ bool IsWindowOnScreen(CFDictionaryRef window) {
 
 bool IsWindowOnScreen(CGWindowID id) {
   bool on_screen;
-  if (GetWindowRef(id, [&on_screen](CFDictionaryRef window) {
-        on_screen = IsWindowOnScreen(window);
-      })) {
+  if (GetWindowRef(id,
+                   [&on_screen](CFDictionaryRef window) {
+                     on_screen = IsWindowOnScreen(window);
+                   })) {
     return on_screen;
   }
   return false;
@@ -208,46 +210,12 @@ WindowId GetWindowId(CFDictionaryRef window) {
     return kNullWindowId;
   }
 
-  // Note: WindowId is 64-bit on 64-bit system, but CGWindowID is always 32-bit.
-  // CFNumberGetValue() fills only top 32 bits, so we should use CGWindowID to
-  // receive the window id.
-  CGWindowID id;
+  WindowId id;
   if (!CFNumberGetValue(window_id, kCFNumberIntType, &id)) {
     return kNullWindowId;
   }
 
   return id;
-}
-
-float GetScaleFactorAtPosition(const MacDesktopConfiguration& desktop_config,
-                               DesktopVector position) {
-  // Find the dpi to physical pixel scale for the screen where the mouse cursor
-  // is.
-  for (auto it = desktop_config.displays.begin();
-       it != desktop_config.displays.end(); ++it) {
-    if (it->bounds.Contains(position)) {
-      return it->dip_to_pixel_scale;
-    }
-  }
-  return 1;
-}
-
-float GetWindowScaleFactor(CGWindowID id, DesktopSize size) {
-  DesktopRect window_bounds = GetWindowBounds(id);
-  float scale = 1.0f;
-
-  if (!window_bounds.is_empty() && !size.is_empty()) {
-    float scale_x = size.width() / window_bounds.width();
-    float scale_y = size.height() / window_bounds.height();
-    // Currently the scale in X and Y directions must be same.
-    if ((std::fabs(scale_x - scale_y) <=
-         std::numeric_limits<float>::epsilon() * std::max(scale_x, scale_y)) &&
-        scale_x > 0.0f) {
-      scale = scale_x;
-    }
-  }
-
-  return scale;
 }
 
 DesktopRect GetWindowBounds(CFDictionaryRef window) {
@@ -262,16 +230,18 @@ DesktopRect GetWindowBounds(CFDictionaryRef window) {
     return DesktopRect();
   }
 
-  return DesktopRect::MakeXYWH(gc_window_rect.origin.x, gc_window_rect.origin.y,
+  return DesktopRect::MakeXYWH(gc_window_rect.origin.x,
+                               gc_window_rect.origin.y,
                                gc_window_rect.size.width,
                                gc_window_rect.size.height);
 }
 
 DesktopRect GetWindowBounds(CGWindowID id) {
   DesktopRect result;
-  if (GetWindowRef(id, [&result](CFDictionaryRef window) {
-        result = GetWindowBounds(window);
-      })) {
+  if (GetWindowRef(id,
+                   [&result](CFDictionaryRef window) {
+                     result = GetWindowBounds(window);
+                   })) {
     return result;
   }
   return DesktopRect();

@@ -22,8 +22,7 @@
 #include "modules/desktop_capture/win/screen_capture_utils.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/time_utils.h"
-#include "rtc_base/trace_event.h"
+#include "rtc_base/timeutils.h"
 
 namespace webrtc {
 
@@ -71,7 +70,6 @@ void ScreenCapturerWinGdi::SetSharedMemoryFactory(
 }
 
 void ScreenCapturerWinGdi::CaptureFrame() {
-  TRACE_EVENT0("webrtc", "ScreenCapturerWinGdi::CaptureFrame");
   int64_t capture_start_time_nanos = rtc::TimeNanos();
 
   queue_.MoveToNextFrame();
@@ -81,19 +79,20 @@ void ScreenCapturerWinGdi::CaptureFrame() {
   PrepareCaptureResources();
 
   if (!CaptureImage()) {
-    RTC_LOG(WARNING) << "Failed to capture screen by GDI.";
     callback_->OnCaptureResult(Result::ERROR_TEMPORARY, nullptr);
     return;
   }
 
   // Emit the current frame.
   std::unique_ptr<DesktopFrame> frame = queue_.current_frame()->Share();
-  frame->set_dpi(DesktopVector(GetDeviceCaps(desktop_dc_, LOGPIXELSX),
-                               GetDeviceCaps(desktop_dc_, LOGPIXELSY)));
+  frame->set_dpi(DesktopVector(
+      GetDeviceCaps(desktop_dc_, LOGPIXELSX),
+      GetDeviceCaps(desktop_dc_, LOGPIXELSY)));
   frame->mutable_updated_region()->SetRect(
       DesktopRect::MakeSize(frame->size()));
-  frame->set_capture_time_ms((rtc::TimeNanos() - capture_start_time_nanos) /
-                             rtc::kNumNanosecsPerMillisec);
+  frame->set_capture_time_ms(
+      (rtc::TimeNanos() - capture_start_time_nanos) /
+      rtc::kNumNanosecsPerMillisec);
   frame->set_capturer_id(DesktopCapturerId::kScreenCapturerWinGdi);
   callback_->OnCaptureResult(Result::SUCCESS, std::move(frame));
 }
@@ -178,10 +177,8 @@ void ScreenCapturerWinGdi::PrepareCaptureResources() {
 bool ScreenCapturerWinGdi::CaptureImage() {
   DesktopRect screen_rect =
       GetScreenRect(current_screen_id_, current_device_key_);
-  if (screen_rect.is_empty()) {
-    RTC_LOG(LS_WARNING) << "Failed to get screen rect.";
+  if (screen_rect.is_empty())
     return false;
-  }
 
   DesktopSize size = screen_rect.size();
   // If the current buffer is from an older generation then allocate a new one.
@@ -194,10 +191,8 @@ bool ScreenCapturerWinGdi::CaptureImage() {
 
     std::unique_ptr<DesktopFrame> buffer = DesktopFrameWin::Create(
         size, shared_memory_factory_.get(), desktop_dc_);
-    if (!buffer) {
-      RTC_LOG(LS_WARNING) << "Failed to create frame buffer.";
+    if (!buffer)
       return false;
-    }
     queue_.ReplaceCurrentFrame(SharedDesktopFrame::Wrap(std::move(buffer)));
   }
   queue_.current_frame()->set_top_left(
@@ -209,15 +204,14 @@ bool ScreenCapturerWinGdi::CaptureImage() {
       queue_.current_frame()->GetUnderlyingFrame());
   HGDIOBJ previous_object = SelectObject(memory_dc_, current->bitmap());
   if (!previous_object || previous_object == HGDI_ERROR) {
-    RTC_LOG(LS_WARNING) << "Failed to select current bitmap into memery dc.";
     return false;
   }
 
   bool result = (BitBlt(memory_dc_, 0, 0, screen_rect.width(),
-                        screen_rect.height(), desktop_dc_, screen_rect.left(),
-                        screen_rect.top(), SRCCOPY | CAPTUREBLT) != FALSE);
+      screen_rect.height(), desktop_dc_, screen_rect.left(), screen_rect.top(),
+      SRCCOPY | CAPTUREBLT) != FALSE);
   if (!result) {
-    RTC_LOG_GLE(LS_WARNING) << "BitBlt failed";
+    LOG_GLE(LS_WARNING) << "BitBlt failed";
   }
 
   // Select back the previously selected object to that the device contect

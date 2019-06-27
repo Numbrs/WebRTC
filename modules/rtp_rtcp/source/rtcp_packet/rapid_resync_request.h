@@ -12,6 +12,7 @@
 #define MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_RAPID_RESYNC_REQUEST_H_
 
 #include "modules/rtp_rtcp/source/rtcp_packet/rtpfb.h"
+#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {
@@ -33,7 +34,7 @@ class RapidResyncRequest : public Rtpfb {
   bool Create(uint8_t* packet,
               size_t* index,
               size_t max_length,
-              PacketReadyCallback callback) const override;
+              RtcpPacket::PacketReadyCallback* callback) const override;
 };
 }  // namespace rtcp
 }  // namespace webrtc

@@ -10,14 +10,10 @@
 #ifndef TEST_ENCODER_SETTINGS_H_
 #define TEST_ENCODER_SETTINGS_H_
 
-#include <stddef.h>
-#include <string>
 #include <vector>
 
-#include "api/video_codecs/video_encoder_config.h"
 #include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
-#include "common_types.h"  // NOLINT(build/include)
 
 namespace webrtc {
 namespace test {
@@ -49,16 +45,11 @@ std::vector<VideoStream> CreateVideoStreams(
     int height,
     const webrtc::VideoEncoderConfig& encoder_config);
 
-void FillEncoderConfiguration(VideoCodecType codec_type,
-                              size_t num_streams,
+void FillEncoderConfiguration(size_t num_streams,
                               VideoEncoderConfig* configuration);
 
 VideoReceiveStream::Decoder CreateMatchingDecoder(
-    int payload_type,
-    const std::string& payload_name);
-
-VideoReceiveStream::Decoder CreateMatchingDecoder(
-    const VideoSendStream::Config& config);
+    const VideoSendStream::Config::EncoderSettings& encoder_settings);
 }  // namespace test
 }  // namespace webrtc
 

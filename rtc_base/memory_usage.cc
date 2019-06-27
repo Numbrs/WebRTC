@@ -12,15 +12,14 @@
 
 #if defined(WEBRTC_LINUX)
 #include <unistd.h>
+#include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #elif defined(WEBRTC_MAC)
 #include <mach/mach.h>
 #elif defined(WEBRTC_WIN)
-// clang-format off
-// clang formating would change include order.
 #include <windows.h>
-#include <psapi.h>  // must come after windows.h
-// clang-format on
+#include <psapi.h>
 #endif
 
 #include "rtc_base/logging.h"
@@ -31,13 +30,13 @@ int64_t GetProcessResidentSizeBytes() {
 #if defined(WEBRTC_LINUX)
   FILE* file = fopen("/proc/self/statm", "r");
   if (file == nullptr) {
-    RTC_LOG(LS_ERROR) << "Failed to open /proc/self/statm";
+    LOG(LS_ERROR) << "Failed to open /proc/self/statm";
     return -1;
   }
   int result = -1;
   if (fscanf(file, "%*s%d", &result) != 1) {
     fclose(file);
-    RTC_LOG(LS_ERROR) << "Failed to parse /proc/self/statm";
+    LOG(LS_ERROR) << "Failed to parse /proc/self/statm";
     return -1;
   }
   fclose(file);
@@ -48,20 +47,17 @@ int64_t GetProcessResidentSizeBytes() {
   if (task_info(mach_task_self(), TASK_BASIC_INFO_64,
                 reinterpret_cast<task_info_t>(&info),
                 &info_count) != KERN_SUCCESS) {
-    RTC_LOG_ERR(LS_ERROR) << "task_info() failed";
+    LOG_ERR(LS_ERROR) << "task_info() failed";
     return -1;
   }
   return info.resident_size;
 #elif defined(WEBRTC_WIN)
   PROCESS_MEMORY_COUNTERS pmc;
   if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)) == 0) {
-    RTC_LOG_ERR(LS_ERROR) << "GetProcessMemoryInfo() failed";
+    LOG_ERR(LS_ERROR) << "GetProcessMemoryInfo() failed";
     return -1;
   }
   return pmc.WorkingSetSize;
-#elif defined(WEBRTC_FUCHSIA)
-  RTC_LOG_ERR(LS_ERROR) << "GetProcessResidentSizeBytes() not implemented";
-  return 0;
 #else
   // Not implemented yet.
   static_assert(false,

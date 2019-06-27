@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "test/gtest.h"
-#include "test/testsupport/file_utils.h"
+#include "test/testsupport/fileutils.h"
 
 namespace webrtc {
 namespace {

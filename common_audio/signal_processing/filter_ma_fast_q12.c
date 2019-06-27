@@ -37,10 +37,7 @@ void WebRtcSpl_FilterMAFastQ12(const int16_t* in_ptr,
 
         for (j = 0; j < B_length; j++)
         {
-          // Negative overflow is permitted here, because this is
-          // auto-regressive filters, and the state for each batch run is
-          // stored in the "negative" positions of the output vector.
-          o += B[j] * in_ptr[(ptrdiff_t) i - (ptrdiff_t) j];
+          o += B[j] * in_ptr[i - j];
         }
 
         // If output is higher than 32768, saturate it. Same with negative side

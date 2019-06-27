@@ -17,24 +17,17 @@
 #include <vector>
 
 #include "api/call/transport.h"
-#include "api/crypto/crypto_options.h"
-#include "api/media_transport_interface.h"
-#include "api/rtp_headers.h"
-#include "api/rtp_parameters.h"
-#include "api/rtp_receiver_interface.h"
-#include "api/video/video_content_type.h"
-#include "api/video/video_sink_interface.h"
-#include "api/video/video_timing.h"
-#include "api/video_codecs/sdp_video_format.h"
+#include "api/rtpparameters.h"
 #include "call/rtp_config.h"
-#include "modules/rtp_rtcp/include/rtcp_statistics.h"
-#include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
+#include "common_types.h"  // NOLINT(build/include)
+#include "common_video/include/frame_callback.h"
+#include "media/base/videosinkinterface.h"
+#include "rtc_base/platform_file.h"
 
 namespace webrtc {
 
-class FrameDecryptorInterface;
 class RtpPacketSinkInterface;
-class VideoDecoderFactory;
+class VideoDecoder;
 
 class VideoReceiveStream {
  public:
@@ -46,15 +39,21 @@ class VideoReceiveStream {
     ~Decoder();
     std::string ToString() const;
 
-    // Ownership stays with WebrtcVideoEngine (delegated from PeerConnection).
-    // TODO(nisse): Move one level out, to VideoReceiveStream::Config, and later
-    // to the configuration of VideoStreamDecoder.
-    VideoDecoderFactory* decoder_factory = nullptr;
-    SdpVideoFormat video_format;
+    // The actual decoder instance.
+    VideoDecoder* decoder = nullptr;
 
     // Received RTP packets with this payload type will be sent to this decoder
     // instance.
     int payload_type = 0;
+
+    // Name of the decoded payload (such as VP8). Maps back to the depacketizer
+    // used to unpack incoming packets.
+    std::string payload_name;
+
+    // This map contains the codec specific parameters from SDP, i.e. the "fmtp"
+    // parameters. It is the same as cricket::CodecParameterMap used in
+    // cricket::VideoCodec.
+    std::map<std::string, std::string> codec_params;
   };
 
   struct Stats {
@@ -79,8 +78,7 @@ class VideoReceiveStream {
     int render_delay_ms = 10;
     int64_t interframe_delay_max_ms = -1;
     uint32_t frames_decoded = 0;
-    int64_t first_frame_received_to_decoded_ms = -1;
-    absl::optional<uint64_t> qp_sum;
+    rtc::Optional<uint64_t> qp_sum;
 
     int current_payload_type = -1;
 
@@ -89,13 +87,6 @@ class VideoReceiveStream {
 
     int width = 0;
     int height = 0;
-
-    uint32_t freeze_count = 0;
-    uint32_t pause_count = 0;
-    uint32_t total_freezes_duration_ms = 0;
-    uint32_t total_pauses_duration_ms = 0;
-    uint32_t total_frames_duration_ms = 0;
-    double sum_squared_frame_durations = 0.0;
 
     VideoContentType content_type = VideoContentType::UNSPECIFIED;
 
@@ -109,7 +100,7 @@ class VideoReceiveStream {
 
     // Timing frame info: all important timestamps for a full lifetime of a
     // single 'timing frame'.
-    absl::optional<webrtc::TimingFrameInfo> timing_frame_info;
+    rtc::Optional<webrtc::TimingFrameInfo> timing_frame_info;
   };
 
   struct Config {
@@ -121,8 +112,6 @@ class VideoReceiveStream {
    public:
     Config() = delete;
     Config(Config&&);
-    Config(Transport* rtcp_send_transport,
-           MediaTransportInterface* media_transport);
     explicit Config(Transport* rtcp_send_transport);
     Config& operator=(Config&&);
     Config& operator=(const Config&) = delete;
@@ -190,6 +179,11 @@ class VideoReceiveStream {
       // Map from rtx payload type -> media payload type.
       // For RTX to be enabled, both an SSRC and this mapping are needed.
       std::map<int, int> rtx_associated_payload_types;
+      // TODO(nisse): This is a temporary accessor function to enable
+      // reversing and renaming of the rtx_payload_types mapping.
+      void AddRtxBinding(int rtx_payload_type, int media_payload_type) {
+        rtx_associated_payload_types[rtx_payload_type] = media_payload_type;
+      }
 
       // RTP header extensions used for the received stream.
       std::vector<RtpExtension> extensions;
@@ -198,39 +192,31 @@ class VideoReceiveStream {
     // Transport for outgoing packets (RTCP).
     Transport* rtcp_send_transport = nullptr;
 
-    MediaTransportInterface* media_transport = nullptr;
-
-    // Must always be set.
+    // Must not be 'nullptr' when the stream is started.
     rtc::VideoSinkInterface<VideoFrame>* renderer = nullptr;
 
     // Expected delay needed by the renderer, i.e. the frame will be delivered
     // this many milliseconds, if possible, earlier than the ideal render time.
+    // Only valid if 'renderer' is set.
     int render_delay_ms = 10;
 
-    // If false, pass frames on to the renderer as soon as they are
+    // If set, pass frames on to the renderer as soon as they are
     // available.
-    bool enable_prerenderer_smoothing = true;
+    bool disable_prerenderer_smoothing = false;
 
     // Identifier for an A/V synchronization group. Empty string to disable.
     // TODO(pbos): Synchronize streams in a sync group, not just video streams
     // to one of the audio streams.
     std::string sync_group;
 
+    // Called for each incoming video frame, i.e. in encoded state. E.g. used
+    // when
+    // saving the stream to a file. 'nullptr' disables the callback.
+    EncodedFrameObserver* pre_decode_callback = nullptr;
+
     // Target delay in milliseconds. A positive value indicates this stream is
     // used for streaming instead of a real-time call.
     int target_delay_ms = 0;
-
-    // TODO(nisse): Used with VideoDecoderFactory::LegacyCreateVideoDecoder.
-    // Delete when that method is retired.
-    std::string stream_id;
-
-    // An optional custom frame decryptor that allows the entire frame to be
-    // decrypted in whatever way the caller choses. This is not required by
-    // default.
-    rtc::scoped_refptr<webrtc::FrameDecryptorInterface> frame_decryptor;
-
-    // Per PeerConnection cryptography options.
-    CryptoOptions crypto_options;
   };
 
   // Starts stream activity.
@@ -243,23 +229,23 @@ class VideoReceiveStream {
   // TODO(pbos): Add info on currently-received codec to Stats.
   virtual Stats GetStats() const = 0;
 
+  // Takes ownership of the file, is responsible for closing it later.
+  // Calling this method will close and finalize any current log.
+  // Giving rtc::kInvalidPlatformFileValue disables logging.
+  // If a frame to be written would make the log too large the write fails and
+  // the log is closed and finalized. A |byte_limit| of 0 means no limit.
+  virtual void EnableEncodedFrameRecording(rtc::PlatformFile file,
+                                           size_t byte_limit) = 0;
+  inline void DisableEncodedFrameRecording() {
+    EnableEncodedFrameRecording(rtc::kInvalidPlatformFileValue, 0);
+  }
+
   // RtpDemuxer only forwards a given RTP packet to one sink. However, some
   // sinks, such as FlexFEC, might wish to be informed of all of the packets
   // a given sink receives (or any set of sinks). They may do so by registering
   // themselves as secondary sinks.
   virtual void AddSecondarySink(RtpPacketSinkInterface* sink) = 0;
   virtual void RemoveSecondarySink(const RtpPacketSinkInterface* sink) = 0;
-
-  virtual std::vector<RtpSource> GetSources() const = 0;
-
-  // Sets a base minimum for the playout delay. Base minimum delay sets lower
-  // bound on minimum delay value determining lower bound on playout delay.
-  //
-  // Returns true if value was successfully set, false overwise.
-  virtual bool SetBaseMinimumPlayoutDelayMs(int delay_ms) = 0;
-
-  // Returns current value of base minimum delay in milliseconds.
-  virtual int GetBaseMinimumPlayoutDelayMs() const = 0;
 
  protected:
   virtual ~VideoReceiveStream() {}

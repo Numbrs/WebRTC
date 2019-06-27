@@ -12,11 +12,9 @@
 #ifndef MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_ESTIMATORS_CONGESTION_WINDOW_H_
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_TEST_ESTIMATORS_CONGESTION_WINDOW_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include "absl/types/optional.h"
 #include "modules/remote_bitrate_estimator/test/estimators/bbr.h"
+
+#include "api/optional.h"
 
 namespace webrtc {
 namespace testing {
@@ -27,10 +25,10 @@ class CongestionWindow {
   ~CongestionWindow();
   int GetCongestionWindow(BbrBweSender::Mode mode,
                           int64_t bandwidth_estimate,
-                          absl::optional<int64_t> min_rtt,
+                          rtc::Optional<int64_t> min_rtt,
                           float gain);
   int GetTargetCongestionWindow(int64_t bandwidth_estimate,
-                                absl::optional<int64_t> min_rtt,
+                                rtc::Optional<int64_t> min_rtt,
                                 float gain);
   // Packet sent from sender, meaning it is inflight until we receive it and we
   // should add packet's size to data_inflight.

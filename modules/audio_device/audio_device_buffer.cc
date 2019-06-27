@@ -8,17 +8,19 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <string.h>
+#include <algorithm>
 #include <cmath>
-#include <cstddef>
-#include <cstdint>
+
+#include "modules/audio_device/audio_device_buffer.h"
 
 #include "common_audio/signal_processing/include/signal_processing_library.h"
-#include "modules/audio_device/audio_device_buffer.h"
+#include "modules/audio_device/audio_device_config.h"
+#include "rtc_base/arraysize.h"
 #include "rtc_base/bind.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/format_macros.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/time_utils.h"
+#include "rtc_base/timeutils.h"
 #include "system_wrappers/include/metrics.h"
 
 namespace webrtc {
@@ -48,9 +50,12 @@ AudioDeviceBuffer::AudioDeviceBuffer()
       play_channels_(0),
       playing_(false),
       recording_(false),
+      current_mic_level_(0),
+      new_mic_level_(0),
       typing_status_(false),
       play_delay_ms_(0),
       rec_delay_ms_(0),
+      clock_drift_(0),
       num_stat_reports_(0),
       last_timer_task_time_(0),
       rec_stat_count_(0),
@@ -58,27 +63,28 @@ AudioDeviceBuffer::AudioDeviceBuffer()
       play_start_time_(0),
       only_silence_recorded_(true),
       log_stats_(false) {
-  RTC_LOG(INFO) << "AudioDeviceBuffer::ctor";
+  LOG(INFO) << "AudioDeviceBuffer::ctor";
 #ifdef AUDIO_DEVICE_PLAYS_SINUS_TONE
   phase_ = 0.0;
-  RTC_LOG(WARNING) << "AUDIO_DEVICE_PLAYS_SINUS_TONE is defined!";
+  LOG(WARNING) << "AUDIO_DEVICE_PLAYS_SINUS_TONE is defined!";
 #endif
-  WebRtcSpl_Init();
+  playout_thread_checker_.DetachFromThread();
+  recording_thread_checker_.DetachFromThread();
 }
 
 AudioDeviceBuffer::~AudioDeviceBuffer() {
   RTC_DCHECK_RUN_ON(&main_thread_checker_);
   RTC_DCHECK(!playing_);
   RTC_DCHECK(!recording_);
-  RTC_LOG(INFO) << "AudioDeviceBuffer::~dtor";
+  LOG(INFO) << "AudioDeviceBuffer::~dtor";
 }
 
 int32_t AudioDeviceBuffer::RegisterAudioCallback(
     AudioTransport* audio_callback) {
   RTC_DCHECK_RUN_ON(&main_thread_checker_);
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
   if (playing_ || recording_) {
-    RTC_LOG(LS_ERROR) << "Failed to set audio transport since media was active";
+    LOG(LS_ERROR) << "Failed to set audio transport since media was active";
     return -1;
   }
   audio_transport_cb_ = audio_callback;
@@ -93,7 +99,8 @@ void AudioDeviceBuffer::StartPlayout() {
   if (playing_) {
     return;
   }
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
+  playout_thread_checker_.DetachFromThread();
   // Clear members tracking playout stats and do it on the task queue.
   task_queue_.PostTask([this] { ResetPlayStats(); });
   // Start a periodic timer based on task queue if not already done by the
@@ -112,7 +119,8 @@ void AudioDeviceBuffer::StartRecording() {
   if (recording_) {
     return;
   }
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
+  recording_thread_checker_.DetachFromThread();
   // Clear members tracking recording stats and do it on the task queue.
   task_queue_.PostTask([this] { ResetRecStats(); });
   // Start a periodic timer based on task queue if not already done by the
@@ -134,13 +142,13 @@ void AudioDeviceBuffer::StopPlayout() {
   if (!playing_) {
     return;
   }
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
   playing_ = false;
   // Stop periodic logging if no more media is active.
   if (!recording_) {
     StopPeriodicLogging();
   }
-  RTC_LOG(INFO) << "total playout time: " << rtc::TimeSince(play_start_time_);
+  LOG(INFO) << "total playout time: " << rtc::TimeSince(play_start_time_);
 }
 
 void AudioDeviceBuffer::StopRecording() {
@@ -148,7 +156,7 @@ void AudioDeviceBuffer::StopRecording() {
   if (!recording_) {
     return;
   }
-  RTC_LOG(INFO) << __FUNCTION__;
+  LOG(INFO) << __FUNCTION__;
   recording_ = false;
   // Stop periodic logging if no more media is active.
   if (!playing_) {
@@ -168,64 +176,113 @@ void AudioDeviceBuffer::StopRecording() {
   if (time_since_start > kMinValidCallTimeTimeInMilliseconds) {
     const int only_zeros = static_cast<int>(only_silence_recorded_);
     RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.RecordedOnlyZeros", only_zeros);
-    RTC_LOG(INFO) << "HISTOGRAM(WebRTC.Audio.RecordedOnlyZeros): "
-                  << only_zeros;
+    LOG(INFO) << "HISTOGRAM(WebRTC.Audio.RecordedOnlyZeros): " << only_zeros;
   }
-  RTC_LOG(INFO) << "total recording time: " << time_since_start;
+  LOG(INFO) << "total recording time: " << time_since_start;
 }
 
 int32_t AudioDeviceBuffer::SetRecordingSampleRate(uint32_t fsHz) {
-  RTC_LOG(INFO) << "SetRecordingSampleRate(" << fsHz << ")";
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
+  LOG(INFO) << "SetRecordingSampleRate(" << fsHz << ")";
   rec_sample_rate_ = fsHz;
   return 0;
 }
 
 int32_t AudioDeviceBuffer::SetPlayoutSampleRate(uint32_t fsHz) {
-  RTC_LOG(INFO) << "SetPlayoutSampleRate(" << fsHz << ")";
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
+  LOG(INFO) << "SetPlayoutSampleRate(" << fsHz << ")";
   play_sample_rate_ = fsHz;
   return 0;
 }
 
-uint32_t AudioDeviceBuffer::RecordingSampleRate() const {
+int32_t AudioDeviceBuffer::RecordingSampleRate() const {
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
   return rec_sample_rate_;
 }
 
-uint32_t AudioDeviceBuffer::PlayoutSampleRate() const {
+int32_t AudioDeviceBuffer::PlayoutSampleRate() const {
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
   return play_sample_rate_;
 }
 
 int32_t AudioDeviceBuffer::SetRecordingChannels(size_t channels) {
-  RTC_LOG(INFO) << "SetRecordingChannels(" << channels << ")";
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
+  LOG(INFO) << "SetRecordingChannels(" << channels << ")";
   rec_channels_ = channels;
   return 0;
 }
 
 int32_t AudioDeviceBuffer::SetPlayoutChannels(size_t channels) {
-  RTC_LOG(INFO) << "SetPlayoutChannels(" << channels << ")";
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
+  LOG(INFO) << "SetPlayoutChannels(" << channels << ")";
   play_channels_ = channels;
   return 0;
 }
 
+int32_t AudioDeviceBuffer::SetRecordingChannel(
+    const AudioDeviceModule::ChannelType channel) {
+  LOG(INFO) << "SetRecordingChannel(" << channel << ")";
+  LOG(LS_WARNING) << "Not implemented";
+  // Add DCHECK to ensure that user does not try to use this API with a non-
+  // default parameter.
+  RTC_DCHECK_EQ(channel, AudioDeviceModule::kChannelBoth);
+  return -1;
+}
+
+int32_t AudioDeviceBuffer::RecordingChannel(
+    AudioDeviceModule::ChannelType& channel) const {
+  LOG(LS_WARNING) << "Not implemented";
+  return -1;
+}
+
 size_t AudioDeviceBuffer::RecordingChannels() const {
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
   return rec_channels_;
 }
 
 size_t AudioDeviceBuffer::PlayoutChannels() const {
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
   return play_channels_;
 }
 
+int32_t AudioDeviceBuffer::SetCurrentMicLevel(uint32_t level) {
+#if !defined(WEBRTC_WIN)
+  // Windows uses a dedicated thread for volume APIs.
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
+#endif
+  current_mic_level_ = level;
+  return 0;
+}
+
 int32_t AudioDeviceBuffer::SetTypingStatus(bool typing_status) {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   typing_status_ = typing_status;
   return 0;
 }
 
-void AudioDeviceBuffer::SetVQEData(int play_delay_ms, int rec_delay_ms) {
+void AudioDeviceBuffer::NativeAudioInterrupted() {
+  RTC_DCHECK(main_thread_checker_.CalledOnValidThread());
+  playout_thread_checker_.DetachFromThread();
+  recording_thread_checker_.DetachFromThread();
+}
+
+uint32_t AudioDeviceBuffer::NewMicLevel() const {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
+  return new_mic_level_;
+}
+
+void AudioDeviceBuffer::SetVQEData(int play_delay_ms,
+                                   int rec_delay_ms,
+                                   int clock_drift) {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   play_delay_ms_ = play_delay_ms;
   rec_delay_ms_ = rec_delay_ms;
+  clock_drift_ = clock_drift;
 }
 
 int32_t AudioDeviceBuffer::SetRecordedBuffer(const void* audio_buffer,
                                              size_t samples_per_channel) {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   // Copy the complete input buffer to the local buffer.
   const size_t old_size = rec_buffer_.size();
   rec_buffer_.SetData(static_cast<const int16_t*>(audio_buffer),
@@ -233,7 +290,7 @@ int32_t AudioDeviceBuffer::SetRecordedBuffer(const void* audio_buffer,
   // Keep track of the size of the recording buffer. Only updated when the
   // size changes, which is a rare event.
   if (old_size != rec_buffer_.size()) {
-    RTC_LOG(LS_INFO) << "Size of recording buffer: " << rec_buffer_.size();
+    LOG(LS_INFO) << "Size of recording buffer: " << rec_buffer_.size();
   }
 
   // Derive a new level value twice per second and check if it is non-zero.
@@ -257,39 +314,43 @@ int32_t AudioDeviceBuffer::SetRecordedBuffer(const void* audio_buffer,
 }
 
 int32_t AudioDeviceBuffer::DeliverRecordedData() {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   if (!audio_transport_cb_) {
-    RTC_LOG(LS_WARNING) << "Invalid audio transport";
+    LOG(LS_WARNING) << "Invalid audio transport";
     return 0;
   }
   const size_t frames = rec_buffer_.size() / rec_channels_;
   const size_t bytes_per_frame = rec_channels_ * sizeof(int16_t);
-  uint32_t new_mic_level_dummy = 0;
+  uint32_t new_mic_level(0);
   uint32_t total_delay_ms = play_delay_ms_ + rec_delay_ms_;
   int32_t res = audio_transport_cb_->RecordedDataIsAvailable(
       rec_buffer_.data(), frames, bytes_per_frame, rec_channels_,
-      rec_sample_rate_, total_delay_ms, 0, 0, typing_status_,
-      new_mic_level_dummy);
-  if (res == -1) {
-    RTC_LOG(LS_ERROR) << "RecordedDataIsAvailable() failed";
+      rec_sample_rate_, total_delay_ms, clock_drift_, current_mic_level_,
+      typing_status_, new_mic_level);
+  if (res != -1) {
+    new_mic_level_ = new_mic_level;
+  } else {
+    LOG(LS_ERROR) << "RecordedDataIsAvailable() failed";
   }
   return 0;
 }
 
 int32_t AudioDeviceBuffer::RequestPlayoutData(size_t samples_per_channel) {
+  RTC_DCHECK_RUN_ON(&playout_thread_checker_);
   // The consumer can change the requested size on the fly and we therefore
   // resize the buffer accordingly. Also takes place at the first call to this
   // method.
   const size_t total_samples = play_channels_ * samples_per_channel;
   if (play_buffer_.size() != total_samples) {
     play_buffer_.SetSize(total_samples);
-    RTC_LOG(LS_INFO) << "Size of playout buffer: " << play_buffer_.size();
+    LOG(LS_INFO) << "Size of playout buffer: " << play_buffer_.size();
   }
 
   size_t num_samples_out(0);
   // It is currently supported to start playout without a valid audio
   // transport object. Leads to warning and silence.
   if (!audio_transport_cb_) {
-    RTC_LOG(LS_WARNING) << "Invalid audio transport";
+    LOG(LS_WARNING) << "Invalid audio transport";
     return 0;
   }
 
@@ -301,7 +362,7 @@ int32_t AudioDeviceBuffer::RequestPlayoutData(size_t samples_per_channel) {
       samples_per_channel, bytes_per_frame, play_channels_, play_sample_rate_,
       play_buffer_.data(), num_samples_out, &elapsed_time_ms, &ntp_time_ms);
   if (res != 0) {
-    RTC_LOG(LS_ERROR) << "NeedMorePlayData() failed";
+    LOG(LS_ERROR) << "NeedMorePlayData() failed";
   }
 
   // Derive a new level value twice per second.
@@ -320,22 +381,15 @@ int32_t AudioDeviceBuffer::RequestPlayoutData(size_t samples_per_channel) {
 }
 
 int32_t AudioDeviceBuffer::GetPlayoutData(void* audio_buffer) {
+  RTC_DCHECK_RUN_ON(&playout_thread_checker_);
   RTC_DCHECK_GT(play_buffer_.size(), 0);
 #ifdef AUDIO_DEVICE_PLAYS_SINUS_TONE
   const double phase_increment =
       k2Pi * 440.0 / static_cast<double>(play_sample_rate_);
   int16_t* destination_r = reinterpret_cast<int16_t*>(audio_buffer);
-  if (play_channels_ == 1) {
-    for (size_t i = 0; i < play_buffer_.size(); ++i) {
-      destination_r[i] = static_cast<int16_t>((sin(phase_) * (1 << 14)));
-      phase_ += phase_increment;
-    }
-  } else if (play_channels_ == 2) {
-    for (size_t i = 0; i < play_buffer_.size() / 2; ++i) {
-      destination_r[2 * i] = destination_r[2 * i + 1] =
-          static_cast<int16_t>((sin(phase_) * (1 << 14)));
-      phase_ += phase_increment;
-    }
+  for (size_t i = 0; i < play_buffer_.size(); ++i) {
+    destination_r[i] = static_cast<int16_t>((sin(phase_) * (1 << 14)));
+    phase_ += phase_increment;
   }
 #else
   memcpy(audio_buffer, play_buffer_.data(),
@@ -389,53 +443,28 @@ void AudioDeviceBuffer::LogStats(LogState state) {
     stats_.max_play_level = 0;
   }
 
-  // Cache current sample rate from atomic members.
-  const uint32_t rec_sample_rate = rec_sample_rate_;
-  const uint32_t play_sample_rate = play_sample_rate_;
-
-  // Log the latest statistics but skip the first two rounds just after state
-  // was set to LOG_START to ensure that we have at least one full stable
-  // 10-second interval for sample-rate estimation. Hence, first printed log
-  // will be after ~20 seconds.
-  if (++num_stat_reports_ > 2 &&
-      static_cast<size_t>(time_since_last) > kTimerIntervalInMilliseconds / 2) {
+  // Log the latest statistics but skip the first round just after state was
+  // set to LOG_START. Hence, first printed log will be after ~10 seconds.
+  if (++num_stat_reports_ > 1 && time_since_last > 0) {
     uint32_t diff_samples = stats.rec_samples - last_stats_.rec_samples;
     float rate = diff_samples / (static_cast<float>(time_since_last) / 1000.0);
-    uint32_t abs_diff_rate_in_percent = 0;
-    if (rec_sample_rate > 0 && rate > 0) {
-      abs_diff_rate_in_percent = static_cast<uint32_t>(
-          0.5f +
-          ((100.0f * std::abs(rate - rec_sample_rate)) / rec_sample_rate));
-      RTC_HISTOGRAM_PERCENTAGE("WebRTC.Audio.RecordSampleRateOffsetInPercent",
-                               abs_diff_rate_in_percent);
-      RTC_LOG(INFO) << "[REC : " << time_since_last << "msec, "
-                    << rec_sample_rate / 1000 << "kHz] callbacks: "
-                    << stats.rec_callbacks - last_stats_.rec_callbacks << ", "
-                    << "samples: " << diff_samples << ", "
-                    << "rate: " << static_cast<int>(rate + 0.5) << ", "
-                    << "rate diff: " << abs_diff_rate_in_percent << "%, "
-                    << "level: " << stats.max_rec_level;
-    }
+    LOG(INFO) << "[REC : " << time_since_last << "msec, "
+              << rec_sample_rate_ / 1000 << "kHz] callbacks: "
+              << stats.rec_callbacks - last_stats_.rec_callbacks << ", "
+              << "samples: " << diff_samples << ", "
+              << "rate: " << static_cast<int>(rate + 0.5) << ", "
+              << "level: " << stats.max_rec_level;
 
     diff_samples = stats.play_samples - last_stats_.play_samples;
     rate = diff_samples / (static_cast<float>(time_since_last) / 1000.0);
-    abs_diff_rate_in_percent = 0;
-    if (play_sample_rate > 0 && rate > 0) {
-      abs_diff_rate_in_percent = static_cast<uint32_t>(
-          0.5f +
-          ((100.0f * std::abs(rate - play_sample_rate)) / play_sample_rate));
-      RTC_HISTOGRAM_PERCENTAGE("WebRTC.Audio.PlayoutSampleRateOffsetInPercent",
-                               abs_diff_rate_in_percent);
-      RTC_LOG(INFO) << "[PLAY: " << time_since_last << "msec, "
-                    << play_sample_rate / 1000 << "kHz] callbacks: "
-                    << stats.play_callbacks - last_stats_.play_callbacks << ", "
-                    << "samples: " << diff_samples << ", "
-                    << "rate: " << static_cast<int>(rate + 0.5) << ", "
-                    << "rate diff: " << abs_diff_rate_in_percent << "%, "
-                    << "level: " << stats.max_play_level;
-    }
+    LOG(INFO) << "[PLAY: " << time_since_last << "msec, "
+              << play_sample_rate_ / 1000 << "kHz] callbacks: "
+              << stats.play_callbacks - last_stats_.play_callbacks << ", "
+              << "samples: " << diff_samples << ", "
+              << "rate: " << static_cast<int>(rate + 0.5) << ", "
+              << "level: " << stats.max_play_level;
+    last_stats_ = stats;
   }
-  last_stats_ = stats;
 
   int64_t time_to_wait_ms = next_callback_time - rtc::TimeMillis();
   RTC_DCHECK_GT(time_to_wait_ms, 0) << "Invalid timer interval";
@@ -462,6 +491,7 @@ void AudioDeviceBuffer::ResetPlayStats() {
 
 void AudioDeviceBuffer::UpdateRecStats(int16_t max_abs,
                                        size_t samples_per_channel) {
+  RTC_DCHECK_RUN_ON(&recording_thread_checker_);
   rtc::CritScope cs(&lock_);
   ++stats_.rec_callbacks;
   stats_.rec_samples += samples_per_channel;
@@ -472,6 +502,7 @@ void AudioDeviceBuffer::UpdateRecStats(int16_t max_abs,
 
 void AudioDeviceBuffer::UpdatePlayStats(int16_t max_abs,
                                         size_t samples_per_channel) {
+  RTC_DCHECK_RUN_ON(&playout_thread_checker_);
   rtc::CritScope cs(&lock_);
   ++stats_.play_callbacks;
   stats_.play_samples += samples_per_channel;

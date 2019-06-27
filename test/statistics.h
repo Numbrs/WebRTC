@@ -10,7 +10,7 @@
 #ifndef TEST_STATISTICS_H_
 #define TEST_STATISTICS_H_
 
-#include <stdint.h>
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 namespace test {
@@ -21,17 +21,13 @@ class Statistics {
 
   void AddSample(double sample);
 
-  double Max() const;
   double Mean() const;
-  double Min() const;
   double Variance() const;
   double StandardDeviation() const;
 
  private:
   double sum_;
   double sum_squared_;
-  double max_;
-  double min_;
   uint64_t count_;
 };
 }  // namespace test

@@ -11,52 +11,34 @@
 #include "modules/rtp_rtcp/source/rtp_sender_audio.h"
 
 #include <string.h>
+
 #include <memory>
 #include <utility>
 
-#include "absl/strings/match.h"
-#include "api/audio_codecs/audio_format.h"
-#include "modules/remote_bitrate_estimator/test/bwe_test_logging.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
-#include "modules/rtp_rtcp/source/rtp_packet.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
-#include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/timeutils.h"
 #include "rtc_base/trace_event.h"
 
 namespace webrtc {
 
-namespace {
-
-const char* FrameTypeToString(FrameType frame_type) {
-  switch (frame_type) {
-    case kEmptyFrame:
-      return "empty";
-    case kAudioFrameSpeech:
-      return "audio_speech";
-    case kAudioFrameCN:
-      return "audio_cn";
-    default:
-      RTC_NOTREACHED();
-      return "";
-  }
-}
-
-}  // namespace
-
 RTPSenderAudio::RTPSenderAudio(Clock* clock, RTPSender* rtp_sender)
-    : clock_(clock), rtp_sender_(rtp_sender) {}
+    : clock_(clock),
+      rtp_sender_(rtp_sender) {}
 
 RTPSenderAudio::~RTPSenderAudio() {}
 
-int32_t RTPSenderAudio::RegisterAudioPayload(absl::string_view payload_name,
-                                             const int8_t payload_type,
-                                             const uint32_t frequency,
-                                             const size_t channels,
-                                             const uint32_t rate) {
-  if (absl::EqualsIgnoreCase(payload_name, "cn")) {
+int32_t RTPSenderAudio::RegisterAudioPayload(
+    const char payloadName[RTP_PAYLOAD_NAME_SIZE],
+    const int8_t payload_type,
+    const uint32_t frequency,
+    const size_t channels,
+    const uint32_t rate,
+    RtpUtility::Payload** payload) {
+  if (RtpUtility::StringCompare(payloadName, "cn", 2)) {
     rtc::CritScope cs(&send_audio_critsect_);
     //  we can have multiple CNG payload types
     switch (frequency) {
@@ -75,7 +57,7 @@ int32_t RTPSenderAudio::RegisterAudioPayload(absl::string_view payload_name,
       default:
         return -1;
     }
-  } else if (absl::EqualsIgnoreCase(payload_name, "telephone-event")) {
+  } else if (RtpUtility::StringCompare(payloadName, "telephone-event", 15)) {
     rtc::CritScope cs(&send_audio_critsect_);
     // Don't add it to the list
     // we dont want to allow send with a DTMF payloadtype
@@ -83,6 +65,10 @@ int32_t RTPSenderAudio::RegisterAudioPayload(absl::string_view payload_name,
     dtmf_payload_freq_ = frequency;
     return 0;
   }
+  *payload = new RtpUtility::Payload(
+      payloadName,
+      PayloadUnion(AudioPayload{
+          SdpAudioFormat(payloadName, frequency, channels), rate}));
   return 0;
 }
 
@@ -133,13 +119,8 @@ bool RTPSenderAudio::SendAudio(FrameType frame_type,
                                int8_t payload_type,
                                uint32_t rtp_timestamp,
                                const uint8_t* payload_data,
-                               size_t payload_size) {
-  RTC_DCHECK(frame_type == kAudioFrameSpeech || frame_type == kAudioFrameCN ||
-             frame_type == kEmptyFrame);
-
-  TRACE_EVENT_ASYNC_STEP1("webrtc", "Audio", rtp_timestamp, "Send", "type",
-                          FrameTypeToString(frame_type));
-
+                               size_t payload_size,
+                               const RTPFragmentationHeader* fragmentation) {
   // From RFC 4733:
   // A source has wide latitude as to how often it sends event updates. A
   // natural interval is the spacing between non-event audio packets. [...]
@@ -210,8 +191,7 @@ bool RTPSenderAudio::SendAudio(FrameType frame_type,
         dtmf_duration_samples -= 0xffff;
         dtmf_length_samples_ -= 0xffff;
 
-        return SendTelephoneEventPacket(
-            ended, dtmf_timestamp_,
+        return SendTelephoneEventPacket(ended, dtmf_timestamp_,
             static_cast<uint16_t>(dtmf_duration_samples), false);
       } else {
         if (!SendTelephoneEventPacket(ended, dtmf_timestamp_,
@@ -243,10 +223,21 @@ bool RTPSenderAudio::SendAudio(FrameType frame_type,
   packet->SetExtension<AudioLevel>(frame_type == kAudioFrameSpeech,
                                    audio_level_dbov);
 
-  uint8_t* payload = packet->AllocatePayload(payload_size);
-  if (!payload)  // Too large payload buffer.
-    return false;
-  memcpy(payload, payload_data, payload_size);
+  if (fragmentation && fragmentation->fragmentationVectorSize > 0) {
+    // Use the fragment info if we have one.
+    uint8_t* payload =
+        packet->AllocatePayload(1 + fragmentation->fragmentationLength[0]);
+    if (!payload)  // Too large payload buffer.
+      return false;
+    payload[0] = fragmentation->fragmentationPlType[0];
+    memcpy(payload + 1, payload_data + fragmentation->fragmentationOffset[0],
+           fragmentation->fragmentationLength[0]);
+  } else {
+    uint8_t* payload = packet->AllocatePayload(payload_size);
+    if (!payload)  // Too large payload buffer.
+      return false;
+    memcpy(payload, payload_data, payload_size);
+  }
 
   if (!rtp_sender_->AssignSequenceNumber(packet.get()))
     return false;
@@ -258,10 +249,10 @@ bool RTPSenderAudio::SendAudio(FrameType frame_type,
   TRACE_EVENT_ASYNC_END2("webrtc", "Audio", rtp_timestamp, "timestamp",
                          packet->Timestamp(), "seqnum",
                          packet->SequenceNumber());
-  bool send_result = LogAndSendToNetwork(
+  bool send_result = rtp_sender_->SendToNetwork(
       std::move(packet), kAllowRetransmission, RtpPacketSender::kHighPriority);
   if (first_packet_sent_()) {
-    RTC_LOG(LS_INFO) << "First audio RTP packet sent to pacer";
+    LOG(LS_INFO) << "First audio RTP packet sent to pacer";
   }
   return send_result;
 }
@@ -342,29 +333,14 @@ bool RTPSenderAudio::SendTelephoneEventPacket(bool ended,
     dtmfbuffer[1] = E | R | volume;
     ByteWriter<uint16_t>::WriteBigEndian(dtmfbuffer + 2, duration);
 
-    result = LogAndSendToNetwork(std::move(packet), kAllowRetransmission,
-                                 RtpPacketSender::kHighPriority);
+    TRACE_EVENT_INSTANT2(
+        TRACE_DISABLED_BY_DEFAULT("webrtc_rtp"), "Audio::SendTelephoneEvent",
+        "timestamp", packet->Timestamp(), "seqnum", packet->SequenceNumber());
+    result = rtp_sender_->SendToNetwork(std::move(packet), kAllowRetransmission,
+                                        RtpPacketSender::kHighPriority);
     send_count--;
   } while (send_count > 0 && result);
 
   return result;
 }
-
-bool RTPSenderAudio::LogAndSendToNetwork(
-    std::unique_ptr<RtpPacketToSend> packet,
-    StorageType storage,
-    RtpPacketSender::Priority priority) {
-#if BWE_TEST_LOGGING_COMPILE_TIME_ENABLE
-  int64_t now_ms = clock_->TimeInMilliseconds();
-  BWE_TEST_LOGGING_PLOT_WITH_SSRC(1, "AudioTotBitrate_kbps", now_ms,
-                                  rtp_sender_->ActualSendBitrateKbit(),
-                                  packet->Ssrc());
-  BWE_TEST_LOGGING_PLOT_WITH_SSRC(1, "AudioNackBitrate_kbps", now_ms,
-                                  rtp_sender_->NackOverheadRate() / 1000,
-                                  packet->Ssrc());
-#endif
-
-  return rtp_sender_->SendToNetwork(std::move(packet), storage, priority);
-}
-
 }  // namespace webrtc

@@ -10,7 +10,6 @@
 #include "modules/video_coding/utility/vp8_header_parser.h"
 
 #include "rtc_base/logging.h"
-#include "rtc_base/system/arch.h"
 
 namespace webrtc {
 
@@ -163,7 +162,7 @@ static void ParseFilterHeader(VP8BitReader* br) {
 
 bool GetQp(const uint8_t* buf, size_t length, int* qp) {
   if (length < kCommonPayloadHeaderLength) {
-    RTC_LOG(LS_WARNING) << "Failed to get QP, invalid length.";
+    LOG(LS_WARNING) << "Failed to get QP, invalid length.";
     return false;
   }
   VP8BitReader br;
@@ -176,7 +175,7 @@ bool GetQp(const uint8_t* buf, size_t length, int* qp) {
     header_length = kKeyPayloadHeaderLength;
   }
   if (header_length + partition_length > length) {
-    RTC_LOG(LS_WARNING) << "Failed to get QP, invalid length: " << length;
+    LOG(LS_WARNING) << "Failed to get QP, invalid length: " << length;
     return false;
   }
   buf += header_length;
@@ -194,7 +193,7 @@ bool GetQp(const uint8_t* buf, size_t length, int* qp) {
   // Base QP.
   const int base_q0 = VP8GetValue(&br, 7);
   if (br.eof_ == 1) {
-    RTC_LOG(LS_WARNING) << "Failed to get QP, end of file reached.";
+    LOG(LS_WARNING) << "Failed to get QP, end of file reached.";
     return false;
   }
   *qp = base_q0;

@@ -8,22 +8,8 @@
 
 import functools
 import hashlib
-import logging
 import os
 import re
-import sys
-
-try:
-  import csscompressor
-except ImportError:
-  logging.critical('Cannot import the third-party Python package csscompressor')
-  sys.exit(1)
-
-try:
-  import jsmin
-except ImportError:
-  logging.critical('Cannot import the third-party Python package jsmin')
-  sys.exit(1)
 
 
 class HtmlExport(object):
@@ -34,9 +20,7 @@ class HtmlExport(object):
   # CSS and JS file paths.
   _PATH = os.path.dirname(os.path.realpath(__file__))
   _CSS_FILEPATH = os.path.join(_PATH, 'results.css')
-  _CSS_MINIFIED = True
   _JS_FILEPATH = os.path.join(_PATH, 'results.js')
-  _JS_MINIFIED = True
 
   def __init__(self, output_filepath):
     self._scores_data_frame = None
@@ -51,14 +35,7 @@ class HtmlExport(object):
     self._scores_data_frame = scores_data_frame
     html = ['<html>',
             self._BuildHeader(),
-            ('<script type="text/javascript">'
-              '(function () {'
-                'window.addEventListener(\'load\', function () {'
-                  'var inspector = new AudioInspector();'
-                '});'
-             '})();'
-             '</script>'),
-            '<body>',
+            '<body onload="initialize()">',
             self._BuildBody(),
             '</body>',
             '</html>']
@@ -86,15 +63,15 @@ class HtmlExport(object):
                 'material.min.js"></script>')
 
     # Embed custom JavaScript and CSS files.
+    def EmbedFile(filepath):
+      with open(filepath) as f:
+        for l in f:
+          html.append(l.rstrip())
     html.append('<script>')
-    with open(self._JS_FILEPATH) as f:
-      html.append(jsmin.jsmin(f.read()) if self._JS_MINIFIED else (
-          f.read().rstrip()))
+    EmbedFile(self._JS_FILEPATH)
     html.append('</script>')
     html.append('<style>')
-    with open(self._CSS_FILEPATH) as f:
-      html.append(csscompressor.compress(f.read()) if self._CSS_MINIFIED else (
-          f.read().rstrip()))
+    EmbedFile(self._CSS_FILEPATH)
     html.append('</style>')
 
     html.append('</head>')
@@ -135,24 +112,16 @@ class HtmlExport(object):
                   'id="score-tab-{}">'.format(
                       ' is-active' if is_active else '', tab_index))
       html.append('<div class="page-content">')
-      html.append(self._BuildScoreTab(score_name, ('s{}'.format(tab_index),)))
+      html.append(self._BuildScoreTab(score_name))
       html.append('</div>')
       html.append('</section>')
 
     html.append('</main>')
     html.append('</div>')
 
-    # Add snackbar for notifications.
-    html.append(
-        '<div id="snackbar" aria-live="assertive" aria-atomic="true"'
-            ' aria-relevant="text" class="mdl-snackbar mdl-js-snackbar">'
-          '<div class="mdl-snackbar__text"></div>'
-          '<button type="button" class="mdl-snackbar__action"></button>'
-        '</div>')
-
     return self._NEW_LINE.join(html)
 
-  def _BuildScoreTab(self, score_name, anchor_data):
+  def _BuildScoreTab(self, score_name):
     """Builds the content of a tab."""
     # Find unique values.
     scores = self._scores_data_frame[
@@ -181,22 +150,21 @@ class HtmlExport(object):
     for apm_config in apm_configs:
       html.append('<tr><td>' + self._FormatName(apm_config[0]) + '</td>')
       for test_data_gen_info in test_data_gen_configs:
-        dialog_id = self._ScoreStatsInspectorDialogId(
-            score_name, apm_config[0], test_data_gen_info[0],
-            test_data_gen_info[1])
-        html.append(
-            '<td onclick="openScoreStatsInspector(\'{}\')">{}</td>'.format(
-                dialog_id, self._BuildScoreTableCell(
-                    score_name, test_data_gen_info[0], test_data_gen_info[1],
-                    apm_config[0])))
+        onclick_handler = 'openScoreStatsInspector(\'{}\')'.format(
+            self._ScoreStatsInspectorDialogId(score_name, apm_config[0],
+                                              test_data_gen_info[0],
+                                              test_data_gen_info[1]))
+        html.append('<td onclick="{}">{}</td>'.format(
+            onclick_handler, self._BuildScoreTableCell(
+                score_name, test_data_gen_info[0], test_data_gen_info[1],
+                apm_config[0])))
       html.append('</tr>')
     html.append('</tbody>')
 
     html.append('</table></div><div class="mdl-layout-spacer"></div></div>')
 
     html.append(self._BuildScoreStatsInspectorDialogs(
-        score_name, apm_configs, test_data_gen_configs,
-        anchor_data))
+        score_name, apm_configs, test_data_gen_configs))
 
     return self._NEW_LINE.join(html)
 
@@ -230,7 +198,7 @@ class HtmlExport(object):
     return self._NEW_LINE.join(html)
 
   def _BuildScoreStatsInspectorDialogs(
-      self, score_name, apm_configs, test_data_gen_configs, anchor_data):
+      self, score_name, apm_configs, test_data_gen_configs):
     """Builds a set of score stats inspector dialogs."""
     html = []
     for apm_config in apm_configs:
@@ -251,13 +219,13 @@ class HtmlExport(object):
                         test_data_gen_info[1]))
         html.append(self._BuildScoreStatsInspectorDialog(
             score_name, apm_config[0], test_data_gen_info[0],
-            test_data_gen_info[1], anchor_data + (dialog_id,)))
+            test_data_gen_info[1]))
         html.append('</div>')
 
         # Actions.
         html.append('<div class="mdl-dialog__actions">')
         html.append('<button type="button" class="mdl-button" '
-                    'onclick="closeScoreStatsInspector()">'
+                    'onclick="closeScoreStatsInspector(\'' + dialog_id + '\')">'
                     'Close</button>')
         html.append('</div>')
 
@@ -266,8 +234,7 @@ class HtmlExport(object):
     return self._NEW_LINE.join(html)
 
   def _BuildScoreStatsInspectorDialog(
-      self, score_name, apm_config, test_data_gen, test_data_gen_params,
-      anchor_data):
+      self, score_name, apm_config, test_data_gen, test_data_gen_params):
     """Builds one score stats inspector dialog."""
     scores = self._SliceDataForScoreTableCell(
         score_name, apm_config, test_data_gen, test_data_gen_params)
@@ -286,16 +253,14 @@ class HtmlExport(object):
 
     # Body.
     html.append('<tbody>')
-    for row, (capture, render) in enumerate(capture_render_pairs):
+    for capture, render in capture_render_pairs:
       html.append('<tr><td><div>{}</div><div>{}</div></td>'.format(
           capture, render))
-      for col, echo_simulator in enumerate(echo_simulators):
+      for echo_simulator in echo_simulators:
         score_tuple = self._SliceDataForScoreStatsTableCell(
             scores, capture, render, echo_simulator[0])
-        cell_class = 'r{}c{}'.format(row, col)
-        html.append('<td class="single-score-cell {}">{}</td>'.format(
-            cell_class, self._BuildScoreStatsInspectorTableCell(
-                score_tuple, anchor_data + (cell_class,))))
+        html.append('<td class="single-score-cell">{}</td>'.format(
+            self._BuildScoreStatsInspectorTableCell(score_tuple)))
       html.append('</tr>')
     html.append('</tbody>')
 
@@ -306,14 +271,9 @@ class HtmlExport(object):
 
     return self._NEW_LINE.join(html)
 
-  def _BuildScoreStatsInspectorTableCell(self, score_tuple, anchor_data):
+  def _BuildScoreStatsInspectorTableCell(self, score_tuple):
     """Builds the content of a cell of a score stats inspector."""
-    anchor = '&'.join(anchor_data)
-    html = [('<div class="v">{}</div>'
-             '<button class="mdl-button mdl-js-button mdl-button--icon"'
-                    ' data-anchor="{}">'
-               '<i class="material-icons mdl-color-text--blue-grey">link</i>'
-             '</button>').format(score_tuple.score, anchor)]
+    html = ['<div>{}</div>'.format(score_tuple.score)]
 
     # Add all the available file paths as hidden data.
     for field_name in score_tuple.keys():

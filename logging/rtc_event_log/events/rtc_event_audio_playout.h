@@ -11,9 +11,6 @@
 #ifndef LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_AUDIO_PLAYOUT_H_
 #define LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_AUDIO_PLAYOUT_H_
 
-#include <stdint.h>
-#include <memory>
-
 #include "logging/rtc_event_log/events/rtc_event.h"
 
 namespace webrtc {
@@ -26,13 +23,6 @@ class RtcEventAudioPlayout final : public RtcEvent {
   Type GetType() const override;
 
   bool IsConfigEvent() const override;
-
-  std::unique_ptr<RtcEventAudioPlayout> Copy() const;
-
-  uint32_t ssrc() const { return ssrc_; }
-
- private:
-  RtcEventAudioPlayout(const RtcEventAudioPlayout& other);
 
   const uint32_t ssrc_;
 };

@@ -15,6 +15,7 @@
 
 #include "api/audio_codecs/audio_encoder.h"
 #include "modules/audio_coding/neteq/tools/neteq_input.h"
+#include "modules/include/module_common_types.h"
 
 namespace webrtc {
 namespace test {
@@ -35,19 +36,20 @@ class EncodeNetEqInput : public NetEqInput {
   EncodeNetEqInput(std::unique_ptr<Generator> generator,
                    std::unique_ptr<AudioEncoder> encoder,
                    int64_t input_duration_ms);
-  ~EncodeNetEqInput() override;
 
-  absl::optional<int64_t> NextPacketTime() const override;
+  rtc::Optional<int64_t> NextPacketTime() const override;
 
-  absl::optional<int64_t> NextOutputEventTime() const override;
+  rtc::Optional<int64_t> NextOutputEventTime() const override;
 
   std::unique_ptr<PacketData> PopPacket() override;
 
   void AdvanceOutputEvent() override;
 
-  bool ended() const override;
+  bool ended() const override {
+    return next_output_event_ms_ <= input_duration_ms_;
+  }
 
-  absl::optional<RTPHeader> NextHeader() const override;
+  rtc::Optional<RTPHeader> NextHeader() const override;
 
  private:
   static constexpr int64_t kOutputPeriodMs = 10;

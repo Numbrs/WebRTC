@@ -10,11 +10,10 @@
 
 #include "modules/desktop_capture/blank_detector_desktop_capturer_wrapper.h"
 
-#include <stdint.h>
+#include <algorithm>
 #include <utility>
 
 #include "modules/desktop_capture/desktop_geometry.h"
-#include "modules/desktop_capture/desktop_region.h"
 #include "rtc_base/checks.h"
 #include "system_wrappers/include/metrics.h"
 
@@ -23,7 +22,8 @@ namespace webrtc {
 BlankDetectorDesktopCapturerWrapper::BlankDetectorDesktopCapturerWrapper(
     std::unique_ptr<DesktopCapturer> capturer,
     RgbaColor blank_pixel)
-    : capturer_(std::move(capturer)), blank_pixel_(blank_pixel) {
+    : capturer_(std::move(capturer)),
+      blank_pixel_(blank_pixel) {
   RTC_DCHECK(capturer_);
 }
 
@@ -32,8 +32,8 @@ BlankDetectorDesktopCapturerWrapper::~BlankDetectorDesktopCapturerWrapper() =
 
 void BlankDetectorDesktopCapturerWrapper::Start(
     DesktopCapturer::Callback* callback) {
-  callback_ = callback;
   capturer_->Start(this);
+  callback_ = callback;
 }
 
 void BlankDetectorDesktopCapturerWrapper::SetSharedMemoryFactory(
